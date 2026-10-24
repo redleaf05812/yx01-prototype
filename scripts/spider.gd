@@ -48,7 +48,8 @@ func _ready() -> void:
 	_player = get_tree().get_first_node_in_group("player")
 	add_to_group("spider")
 	var label := Label3D.new()
-	label.text = "Spider (sight 6H)"
+	label.text = "蜘蛛（视野 6H）"
+	label.font = Config.cjk_font
 	label.font_size = 48
 	label.pixel_size = 0.01
 	label.outline_size = 8

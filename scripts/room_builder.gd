@@ -16,11 +16,11 @@ const TUNNEL_COLS := 2
 
 # 方块上的名字标签（英文，默认字体可直接显示）
 const LABEL_TEXT := {
-	"Platform": "Platform 4H",
-	"Barrier": "Barrier 3H",
-	"TunnelRoof": "Tunnel 0.4H (crawl only)",
-	"InfectedGapMarker": "Infected gap 3H",
-	"InfectedDoor": "Door || 2H (EMP to clear)",
+	"Platform": "平台 4H",
+	"Barrier": "阻拦点 3H",
+	"TunnelRoof": "低矮通道 0.4H（只能趴下）",
+	"InfectedGapMarker": "感染区 3H",
+	"InfectedDoor": "侵蚀的门 2H（需 EMP 清除）",
 }
 
 const COLOR_WALL := Color(0.35, 0.35, 0.38)
@@ -186,6 +186,7 @@ func _build_tunnel_zone() -> void:
 func _name_label(pos: Vector3, text: String) -> void:
 	var l := Label3D.new()
 	l.text = text
+	l.font = Config.cjk_font
 	l.font_size = 48
 	l.pixel_size = 0.01
 	l.outline_size = 8

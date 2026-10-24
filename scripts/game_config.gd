@@ -86,3 +86,12 @@ var detect_range_run_stealth := 9.0     # 5H，奔跑
 # Godot 的 Camera3D.size 在正交模式下是视野的完整高度（不是半高）。
 # 11.25H = 20.25 m。宽度随 16:9 自动为 36 m = 20H。
 var camera_ortho_height := 20.25
+
+
+# ---- 中文字体 ----
+# Godot 默认字体不含中文，会显示成方块。这里取系统自带的中文字体（macOS 为 PingFang SC）。
+var cjk_font: SystemFont
+
+func _init() -> void:
+	cjk_font = SystemFont.new()
+	cjk_font.font_names = PackedStringArray(["PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "Noto Sans SC"])
