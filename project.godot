@@ -8,15 +8,16 @@
 
 config_version=5
 
-[autoload]
-
-Config="*res://scripts/game_config.gd"
-
 [application]
 
 config/name="YX01_Prototype"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
+run/main_scene="res://scenes/room_01.tscn"
+
+[autoload]
+
+Config="*res://scripts/game_config.gd"
 
 [display]
 
