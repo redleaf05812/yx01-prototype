@@ -114,5 +114,5 @@ func _build_kill_zone() -> void:
 
 
 func _on_kill_zone_entered(body: Node3D) -> void:
-	# 占位：先打印，玩家控制器写好后改为回出生点
-	print("fell out of room: ", body.name)
+	if body.has_method("respawn"):
+		body.respawn()
