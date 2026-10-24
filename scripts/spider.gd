@@ -13,6 +13,7 @@ enum State { PATROL, CHASE, SEARCH }
 @export var no_go_max := 0.0
 
 var hp := 0.0
+var stun_left := 0.0
 var _state := State.PATROL
 var _player
 var _facing := 1.0
@@ -45,6 +46,7 @@ func _ready() -> void:
 	add_child(mi)
 
 	_player = get_tree().get_first_node_in_group("player")
+	add_to_group("spider")
 	if _player != null:
 		add_collision_exception_with(_player)
 	_target_x = patrol_right
@@ -56,6 +58,14 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= Config.gravity * delta
 	else:
 		velocity.y = 0.0
+
+	if stun_left > 0.0:
+		stun_left -= delta
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		global_position.z = 0.0
+		return
 
 	var seen := _can_see_player()
 	match _state:
@@ -166,6 +176,10 @@ func _can_see_player() -> bool:
 		var cos_ang := (v / dist).dot(Vector2(_facing, 0.0))
 		return cos_ang >= cos(deg_to_rad(Config.spider_vision_angle * 0.5))
 	return r > 0.0 and absf(dx) <= r
+
+
+func stun(t: float) -> void:
+	stun_left = maxf(stun_left, t)
 
 
 func take_hit(dmg: float) -> void:

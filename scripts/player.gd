@@ -9,6 +9,7 @@ extends CharacterBody3D
 enum Posture { STAND, CROUCH, PRONE }
 
 const HUD_SCRIPT := preload("res://scripts/hud.gd")
+const EMP_SCRIPT := preload("res://scripts/emp.gd")
 
 @export var spawn_point := Vector3(9.9, 1.8, 0.0)  # '@' 出生点：第 5 列第 9 行，脚站在地面上
 const BODY_WIDTH := 0.6
@@ -21,6 +22,9 @@ var jet_cd_left := 0.0
 var stealth_on := false
 var stealth_cd_left := 0.0
 var in_tunnel := false
+var kind := 0  # 0 = 手枪, 1 = EMP
+var emp_count := 0
+var reloading := false
 
 var _posture := Posture.STAND
 var _col: CollisionShape3D
@@ -34,6 +38,8 @@ var _dash_dir := 1.0
 var _jet_time_left := 0.0
 var _jet_dir := 1.0
 var _facing := 1.0
+var _fire_cd := 0.0
+var _reload_left := 0.0
 var _iframes_left := 0.0
 var _knock_left := 0.0
 var _knock_dir := 1.0
@@ -59,6 +65,7 @@ func _ready() -> void:
 	hud.bind(self)
 	global_position = spawn_point
 	add_to_group("player")
+	emp_count = Config.emp_carry
 
 
 func _ensure_input() -> void:
@@ -72,6 +79,12 @@ func _ensure_input() -> void:
 	_add_action("jet", [KEY_CTRL])
 	_add_action("stealth", [KEY_Q])
 	_add_action("debug_empty_battery", [KEY_0])  # 调试用：清空电量，上线前删除
+	_add_action("reload", [KEY_R])
+	_add_action("interact", [KEY_F])
+	_add_action("slot_pistol", [KEY_1])
+	_add_action("slot_emp", [KEY_3])
+	_add_mouse_action("fire", MOUSE_BUTTON_LEFT)
+	_add_mouse_action("alt_fire", MOUSE_BUTTON_RIGHT)
 
 
 func _add_action(action: String, keys: Array) -> void:
@@ -164,6 +177,111 @@ func _update_posture() -> void:
 		return
 	_posture = wanted
 	_set_height(target_h)
+
+
+# ---------- 战斗 / 交互 ----------
+
+func _add_mouse_action(action: String, button: MouseButton) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var ev := InputEventMouseButton.new()
+	ev.button_index = button
+	InputMap.action_add_event(action, ev)
+
+
+# 瞄准方向（从 from 指向鼠标，Z=0）；鼠标与自己重合时用朝向
+func _aim_dir(from: Vector3) -> Vector3:
+	var raw := _mouse_world_point() - from
+	raw.z = 0.0
+	return raw.normalized() if raw.length() > 0.01 else Vector3(_facing, 0.0, 0.0)
+
+
+# 趴下（爬行）和隧道里不能开枪、不能投掷、不能换弹
+func _can_act() -> bool:
+	return _posture != Posture.PRONE and not in_tunnel
+
+
+func _update_combat(delta: float) -> void:
+	_fire_cd = maxf(0.0, _fire_cd - delta)
+	if reloading:
+		_reload_left -= delta
+		if _reload_left <= 0.0:
+			reloading = false
+			ammo = Config.pistol_magazine
+
+	if Input.is_action_just_pressed("slot_pistol"):
+		kind = 0
+	if Input.is_action_just_pressed("slot_emp"):
+		kind = 1
+
+	# 换弹：耗 1 格电，动作 1.2 s；电量不足 1 格不能换弹
+	if Input.is_action_just_pressed("reload") and kind == 0 and not reloading \
+			and ammo < Config.pistol_magazine and battery >= Config.reload_cost and _can_act():
+		battery -= Config.reload_cost
+		reloading = true
+		_reload_left = Config.reload_time
+
+	if kind == 0:
+		if Input.is_action_just_pressed("fire") and _can_act() and not reloading \
+				and ammo > 0 and _fire_cd <= 0.0:
+			_fire_pistol()
+	elif emp_count > 0 and _can_act():
+		if Input.is_action_just_pressed("fire"):
+			_throw_emp(false)
+		elif Input.is_action_just_pressed("alt_fire"):
+			_throw_emp(true)
+
+
+# 手枪：瞬时命中（射线），第一个命中的蜘蛛扣血；门和墙挡住子弹
+func _fire_pistol() -> void:
+	ammo -= 1
+	_fire_cd = Config.pistol_fire_interval
+	break_stealth()  # 隐身中开枪立刻破隐
+	var chest := _chest()
+	var end: Vector3 = chest + _aim_dir(chest) * Config.pistol_range
+	var q := PhysicsRayQueryParameters3D.create(chest, end)
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		end = hit.position
+		var target = hit.collider
+		if target.has_method("take_hit"):
+			target.take_hit(Config.pistol_damage)
+	_spawn_tracer(chest, end)
+
+
+# 子弹轨迹：一闪而过的细条
+func _spawn_tracer(a: Vector3, b: Vector3) -> void:
+	var t := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.03, 0.03, maxf(a.distance_to(b), 0.01))
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.0, 0.95, 0.5)
+	bm.material = mat
+	t.mesh = bm
+	get_parent().add_child(t)
+	t.global_position = (a + b) * 0.5
+	t.look_at(b, Vector3.BACK)
+	get_tree().create_timer(0.06).timeout.connect(t.queue_free)
+
+
+func _throw_emp(impact: bool) -> void:
+	emp_count -= 1
+	var chest := _chest()
+	var g = Node3D.new()
+	g.set_script(EMP_SCRIPT)
+	get_parent().add_child(g)
+	g.global_position = chest
+	g.setup(_aim_dir(chest), impact, self)
+
+
+# F 交互：只看 X 距离（2.5D）
+func _try_interact() -> void:
+	for d in get_tree().get_nodes_in_group("door"):
+		if absf(d.global_position.x - global_position.x) <= Config.door_interact_range:
+			d.interact()
+			return
 
 
 # ---------- 隧道 ----------
@@ -310,6 +428,9 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_update_posture()
+	_update_combat(delta)
+	if Input.is_action_just_pressed("interact"):
+		_try_interact()
 
 	if is_on_floor():
 		_jumps_left = 2

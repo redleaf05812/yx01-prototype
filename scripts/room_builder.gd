@@ -106,11 +106,20 @@ func _build_elements() -> void:
 	# 低矮通道顶：col 18..19，离地 0.4H 净高（0.72 m）
 	_add_box(18 * H, 20 * H, 1.8 + 0.4 * H, 1.8 + 0.4 * H + 2 * H, COLOR_TUNNEL, "TunnelRoof")
 
-	# 侵蚀的门 ||：col 29，从地面往上 2H 高
-	_add_box(29 * H, 30 * H, 1.8, 1.8 + 2 * H, COLOR_DOOR, "InfectedDoor")
+	# 侵蚀的门 ||：col 29，从地面往上 2H 高（门脚本处理侵蚀和开关）
+	_build_door()
 
 
 # 感染区缺口下方的死亡区：掉进去就回到出生点（玩家脚本接入后替换）。
+func _build_door() -> void:
+	var door := StaticBody3D.new()
+	door.name = "InfectedDoor"
+	door.set_script(DOOR_SCRIPT)
+	door.set("infected", true)
+	door.position = Vector3(29.5 * H, 1.8 + H, 0.0)
+	add_child(door)
+
+
 func _build_kill_zone() -> void:
 	var area := Area3D.new()
 	area.name = "KillZone"
@@ -125,6 +134,7 @@ func _build_kill_zone() -> void:
 
 
 const SPIDER_SCRIPT := preload("res://scripts/spider.gd")
+const DOOR_SCRIPT := preload("res://scripts/door.gd")
 
 
 # 蜘蛛：'S' 在第 14 列（地面上，平台下方）

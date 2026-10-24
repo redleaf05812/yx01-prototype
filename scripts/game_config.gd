@@ -62,6 +62,8 @@ var emp_stun_time := 5.0                # s
 var emp_fuse_time := 1.5                # s (左键)
 var emp_throw_range := 10.8             # 1080 uu (6H)
 var emp_carry := 2
+var emp_throw_speed := 12.0             # m/s（自定，文档未给飞行速度）
+var door_interact_range := 1.8          # 1H（自定，F 键交互距离）
 
 # ---- 蜘蛛 ----
 var spider_hp := 2.0

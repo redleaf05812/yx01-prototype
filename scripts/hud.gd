@@ -87,7 +87,12 @@ func _process(_delta: float) -> void:
 	for i in _cells.size():
 		var fill := clampf(_player.battery - float(i), 0.0, 1.0)
 		_cells[i].color = Color(0.3, 0.9, 0.4, maxf(fill, 0.12))
-	_ammo_label.text = "%d / %d" % [_player.ammo, Config.pistol_magazine]
+	if _player.kind == 1:
+		_ammo_label.text = "EMP x%d" % _player.emp_count
+	elif _player.reloading:
+		_ammo_label.text = "换弹中"
+	else:
+		_ammo_label.text = "%d / %d" % [_player.ammo, Config.pistol_magazine]
 
 	_slot_overlays[0].anchor_bottom = clampf(_player.jet_cd_left / Config.jet_cooldown, 0.0, 1.0)
 	_slot_overlays[1].anchor_bottom = clampf(_player.stealth_cd_left / Config.stealth_internal_cooldown, 0.0, 1.0)
