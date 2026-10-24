@@ -2,6 +2,7 @@ extends CharacterBody3D
 
 # 小型蜘蛛：巡逻两点往返（到点停 1 s）→ 发现玩家后追击攻击 → 失去目标后原地搜索 6–8 s → 回巡逻。
 # 与玩家互不碰撞（蜘蛛很矮，不挡潜行路线）。原点 = 脚底中心。
+# 边缘保护：前方没有地面就不再往前走（巡逻时掉头，追击时停在边缘），蜘蛛不会自己跳进缺口。
 
 enum State { PATROL, CHASE, SEARCH }
 
@@ -90,13 +91,25 @@ func _set_state(s: State) -> void:
 			_pause_left = 0.0
 
 
+# 脚下边缘检测：前方一小步处有没有地面。没有 = 缺口边缘。
+func _floor_ahead(dir: float) -> bool:
+	var from := global_position + Vector3(dir * (_size.x * 0.5 + 0.2), 0.3, 0.0)
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, -1.0, 0))
+	var ex: Array[RID] = [get_rid()]
+	if _player != null:
+		ex.append(_player.get_rid())
+	query.exclude = ex
+	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+
 func _patrol(delta: float) -> void:
 	if _pause_left > 0.0:
 		_pause_left -= delta
 		velocity.x = 0.0
 		return
 	var dx := _target_x - global_position.x
-	if absf(dx) < 0.1:
+	# 到点，或前面已经没路：停一下，换到另一端
+	if absf(dx) < 0.1 or not _floor_ahead(signf(dx)):
 		_pause_left = Config.spider_patrol_pause
 		_target_x = patrol_left if _target_x == patrol_right else patrol_right
 		velocity.x = 0.0
@@ -114,6 +127,8 @@ func _chase() -> void:
 		if _attack_cd <= 0.0:
 			_player.take_damage(Config.spider_attack_damage, global_position.x)
 			_attack_cd = Config.spider_attack_interval
+	elif not _floor_ahead(_facing):
+		velocity.x = 0.0  # 到边缘就停，不跳进缺口
 	else:
 		velocity.x = _facing * Config.spider_speed
 

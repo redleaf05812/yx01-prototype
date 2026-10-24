@@ -367,18 +367,7 @@ func _physics_process(delta: float) -> void:
 	_update_rope()
 
 
+# 掉进缺口或死亡：整个房间重开（玩家回出生点，蜘蛛等也一起重置）。
+# 用 call_deferred：物理回调里不能直接换场景。
 func respawn() -> void:
-	global_position = spawn_point
-	velocity = Vector3.ZERO
-	hp = Config.max_hp
-	battery = float(Config.battery_max)
-	ammo = Config.pistol_magazine
-	jet_cd_left = 0.0
-	_jumps_left = 2
-	_dash_time_left = 0.0
-	_jet_time_left = 0.0
-	_grapple_active = false
-	_knock_left = 0.0
-	_iframes_left = 0.0
-	stealth_on = false
-	_update_rope()
+	get_tree().call_deferred("reload_current_scene")
