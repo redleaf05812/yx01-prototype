@@ -24,6 +24,7 @@ func _build() -> void:
 	# 左下：血量数字 + 电量 10 格
 	var left := VBoxContainer.new()
 	left.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 24)
+	left.grow_vertical = Control.GROW_DIRECTION_BEGIN  # 从底边向上长，不会跑出屏幕
 	root.add_child(left)
 	_hp_label = Label.new()
 	_hp_label.add_theme_font_size_override("font_size", 24)
@@ -40,6 +41,8 @@ func _build() -> void:
 	# 右下：弹匣 + 三个技能格
 	var right := VBoxContainer.new()
 	right.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, 24)
+	right.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	right.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	root.add_child(right)
 	_ammo_label = Label.new()
 	_ammo_label.add_theme_font_size_override("font_size", 24)
