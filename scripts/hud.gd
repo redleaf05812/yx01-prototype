@@ -21,6 +21,14 @@ func _build() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+	# 屏幕上方的操作提示（原型用占位文字，后续可以换成教学提示）
+	var hint := Label.new()
+	hint.text = "A/D move  Space jump  C crouch  Z crawl  Shift run/dash  Ctrl jet  Q stealth  T grapple  1/3 switch  LMB shoot/throw  RMB impact  R reload  F door  0 empty battery (debug)"
+	hint.add_theme_font_size_override("font_size", 18)
+	hint.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.modulate = Color(1, 1, 1, 0.85)
+	root.add_child(hint)
 
 	# 左下：血量数字 + 电量 10 格（从底边向上长）
 	var left := VBoxContainer.new()
