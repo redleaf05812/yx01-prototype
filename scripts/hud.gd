@@ -1,13 +1,14 @@
 extends CanvasLayer
 
-# 最小 HUD：左下 血量 + 电量格；右下 弹匣 + 三个技能格（喷气 CD / 隐身占位 / 技能2占位）。
+# 最小 HUD：左下 血量 + 电量格；右下 弹匣 + 三个技能格（喷气 CD / 隐身 / 技能2占位）。
 # 用法：hud.bind(player)，之后每帧从 player 读取数值。
 
-var _player: Node
+var _player
 var _hp_label: Label
 var _cells: Array[ColorRect] = []
 var _ammo_label: Label
-var _jet_overlay: ColorRect
+var _slot_bgs: Array[ColorRect] = []
+var _slot_overlays: Array[ColorRect] = []  # [0]=喷气 CD, [1]=隐身 CD
 
 
 func bind(p: Node) -> void:
@@ -21,10 +22,10 @@ func _build() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 
-	# 左下：血量数字 + 电量 10 格
+	# 左下：血量数字 + 电量 10 格（从底边向上长）
 	var left := VBoxContainer.new()
 	left.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 24)
-	left.grow_vertical = Control.GROW_DIRECTION_BEGIN  # 从底边向上长，不会跑出屏幕
+	left.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	root.add_child(left)
 	_hp_label = Label.new()
 	_hp_label.add_theme_font_size_override("font_size", 24)
@@ -38,7 +39,7 @@ func _build() -> void:
 		cell_row.add_child(c)
 		_cells.append(c)
 
-	# 右下：弹匣 + 三个技能格
+	# 右下：弹匣 + 三个技能格（从底边向上、向左长）
 	var right := VBoxContainer.new()
 	right.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, 24)
 	right.grow_vertical = Control.GROW_DIRECTION_BEGIN
@@ -57,18 +58,22 @@ func _build() -> void:
 		var slot := Control.new()
 		slot.custom_minimum_size = Vector2(56, 56)
 		slot_row.add_child(slot)
+
 		var bg := ColorRect.new()
-		bg.color = Color(0.25, 0.25, 0.3) if i == 0 else Color(0.35, 0.35, 0.35)
+		bg.color = Color(0.35, 0.35, 0.35) if i == 2 else Color(0.25, 0.25, 0.3)
 		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 		slot.add_child(bg)
-		if i == 0:
-			# 冷却遮罩：从顶部覆盖，剩余比例越大覆盖越多
-			_jet_overlay = ColorRect.new()
-			_jet_overlay.color = Color(0, 0, 0, 0.6)
-			_jet_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-			slot.add_child(_jet_overlay)
+		_slot_bgs.append(bg)
+
+		if i < 2:
+			var overlay := ColorRect.new()
+			overlay.color = Color(0, 0, 0, 0.6)
+			overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+			slot.add_child(overlay)
+			_slot_overlays.append(overlay)
+
 		var lbl := Label.new()
-		lbl.text = names[i] if i == 0 else "占位"
+		lbl.text = names[i] if i < 2 else "占位"
 		lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -83,4 +88,7 @@ func _process(_delta: float) -> void:
 		var fill := clampf(_player.battery - float(i), 0.0, 1.0)
 		_cells[i].color = Color(0.3, 0.9, 0.4, maxf(fill, 0.12))
 	_ammo_label.text = "%d / %d" % [_player.ammo, Config.pistol_magazine]
-	_jet_overlay.anchor_bottom = clampf(_player.jet_cd_left / Config.jet_cooldown, 0.0, 1.0)
+
+	_slot_overlays[0].anchor_bottom = clampf(_player.jet_cd_left / Config.jet_cooldown, 0.0, 1.0)
+	_slot_overlays[1].anchor_bottom = clampf(_player.stealth_cd_left / Config.stealth_internal_cooldown, 0.0, 1.0)
+	_slot_bgs[1].color = Color(0.2, 0.6, 0.3) if _player.stealth_on else Color(0.25, 0.25, 0.3)

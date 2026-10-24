@@ -18,6 +18,8 @@ var hp := Config.max_hp
 var battery := float(Config.battery_max)
 var ammo := Config.pistol_magazine
 var jet_cd_left := 0.0
+var stealth_on := false
+var stealth_cd_left := 0.0
 
 var _posture := Posture.STAND
 var _col: CollisionShape3D
@@ -31,6 +33,10 @@ var _dash_dir := 1.0
 var _jet_time_left := 0.0
 var _jet_dir := 1.0
 var _facing := 1.0
+var _iframes_left := 0.0
+var _knock_left := 0.0
+var _knock_dir := 1.0
+var _running_now := false
 
 # 勾爪
 var _anchor := Vector3.ZERO
@@ -51,6 +57,7 @@ func _ready() -> void:
 	add_child(hud)
 	hud.bind(self)
 	global_position = spawn_point
+	add_to_group("player")
 
 
 func _ensure_input() -> void:
@@ -62,6 +69,7 @@ func _ensure_input() -> void:
 	_add_action("prone", [KEY_Z])
 	_add_action("grapple", [KEY_T])
 	_add_action("jet", [KEY_CTRL])
+	_add_action("stealth", [KEY_Q])
 	_add_action("debug_empty_battery", [KEY_0])  # 调试用：清空电量，上线前删除
 
 
@@ -157,6 +165,41 @@ func _update_posture() -> void:
 	_set_height(target_h)
 
 
+# ---------- 隐身 / 受伤 ----------
+
+func _stop_stealth() -> void:
+	stealth_on = false
+	stealth_cd_left = Config.stealth_internal_cooldown
+
+
+# 蜘蛛用：返回 INF = 未隐身（用普通视野）；0 = 不可能被发现；否则为水平发现距离
+func detection_range() -> float:
+	if not stealth_on:
+		return INF
+	if _posture != Posture.STAND:
+		return 0.0
+	return Config.detect_range_run_stealth if _running_now else Config.detect_range_walk_stealth
+
+
+# 开枪时调用（M5 接入）：隐身中开枪立刻破隐
+func break_stealth() -> void:
+	if stealth_on:
+		_stop_stealth()
+
+
+func take_damage(amount: float, from_x: float) -> void:
+	if _iframes_left > 0.0:
+		return
+	hp -= amount
+	_iframes_left = Config.invincible_time
+	_knock_dir = signf(global_position.x - from_x)
+	if _knock_dir == 0.0:
+		_knock_dir = 1.0
+	_knock_left = 0.2
+	if hp <= 0.0:
+		respawn()
+
+
 # ---------- 勾爪 ----------
 
 func _chest() -> Vector3:
@@ -238,6 +281,8 @@ func _physics_process(delta: float) -> void:
 	battery = minf(float(Config.battery_max), battery + Config.battery_regen_per_sec * delta)
 	jet_cd_left = maxf(0.0, jet_cd_left - delta)
 	_dash_cd_left = maxf(0.0, _dash_cd_left - delta)
+	stealth_cd_left = maxf(0.0, stealth_cd_left - delta)
+	_iframes_left = maxf(0.0, _iframes_left - delta)
 
 	_update_aim()
 	if not _grapple_active and Input.is_action_just_pressed("grapple") and _anchor_valid:
@@ -258,6 +303,19 @@ func _physics_process(delta: float) -> void:
 		_facing = signf(dir)
 	var has_power := battery > 0.0001
 	var running := Input.is_action_pressed("run") and _posture == Posture.STAND and has_power
+	_running_now = running and dir != 0.0
+
+	# 隐身（Q 切换）：启动需 >= 3 格，持续每秒耗 1 格，关闭后 3 s 内置 CD
+	if Input.is_action_just_pressed("stealth"):
+		if stealth_on:
+			_stop_stealth()
+		elif stealth_cd_left <= 0.0 and battery >= Config.battery_start_threshold:
+			stealth_on = true
+	if stealth_on:
+		battery -= Config.stealth_cost_per_sec * delta
+		if battery <= 0.0:
+			battery = 0.0
+			_stop_stealth()
 
 	# 点按 Shift 冲刺（站立、有电、有 CD）
 	if Input.is_action_just_pressed("run") and _posture == Posture.STAND and has_power and _dash_cd_left <= 0.0:
@@ -286,7 +344,11 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 
 	# 水平：喷气 > 冲刺 > 正常移动
-	if _jet_time_left > 0.0:
+	if _knock_left > 0.0:
+		_knock_left -= delta
+		velocity.x = _knock_dir * Config.knockback_distance / 0.2
+		velocity.y = velocity.y if not is_on_floor() else 0.0
+	elif _jet_time_left > 0.0:
 		_jet_time_left -= delta
 		velocity.x = _jet_dir * Config.jet_distance / Config.jet_duration
 		velocity.y = 0.0
@@ -316,4 +378,7 @@ func respawn() -> void:
 	_dash_time_left = 0.0
 	_jet_time_left = 0.0
 	_grapple_active = false
+	_knock_left = 0.0
+	_iframes_left = 0.0
+	stealth_on = false
 	_update_rope()

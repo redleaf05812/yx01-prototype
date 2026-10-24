@@ -26,6 +26,7 @@ func _ready() -> void:
 	_build_room()
 	_build_elements()
 	_build_kill_zone()
+	_build_spider()
 
 
 # 通用：生成一个带碰撞的长方体。x0..x1, y0..y1 为米，z 厚度 1 格。
@@ -116,6 +117,18 @@ func _build_kill_zone() -> void:
 	area.position = Vector3(COLS * H * 0.5, -3.0, 0.0)
 	add_child(area)
 	area.body_entered.connect(_on_kill_zone_entered)
+
+
+const SPIDER_SCRIPT := preload("res://scripts/spider.gd")
+
+
+# 蜘蛛：'S' 在第 14 列（地面上，平台下方）
+func _build_spider() -> void:
+	var spider := CharacterBody3D.new()
+	spider.name = "Spider"
+	spider.set_script(SPIDER_SCRIPT)
+	spider.position = Vector3((14 + 0.5) * H, 1.8, 0.0)
+	add_child(spider)
 
 
 func _on_kill_zone_entered(body: Node3D) -> void:
