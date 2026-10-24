@@ -1,14 +1,23 @@
 extends CharacterBody3D
 
-# 玩家控制器：走 / 跑 / 蹲 / 趴 / 一段跳 / 二段跳 / 冲刺 / 勾爪 (M1 + M2)。
+# 玩家控制器：走 / 跑 / 蹲 / 趴 / 一段跳 / 二段跳 / 冲刺 / 勾爪 / 喷气 / 电池 (M1–M3)。
 # 原点 = 脚底中心。2.5D：Z 锁定为 0。
 # 假设（文档未给）：身体宽 0.6 m；二段跳 = 与一段跳同速度；空中保持水平速度；
-#                    勾爪的锚点 = 瞄准射线打到的第一个表面，且在射程内。
+#   勾爪锚点 = 瞄准射线第一个命中的表面且在射程内；
+#   冲刺/跑/空中二段跳 在电量为 0 时不可用；喷气只需电量 >= 3 格启动（启动后可用到 0）。
 
 enum Posture { STAND, CROUCH, PRONE }
 
+const HUD_SCRIPT := preload("res://scripts/hud.gd")
+
 @export var spawn_point := Vector3(9.9, 1.8, 0.0)  # '@' 出生点：第 5 列第 9 行，脚站在地面上
 const BODY_WIDTH := 0.6
+
+# 公开状态（HUD 读取）
+var hp := Config.max_hp
+var battery := float(Config.battery_max)
+var ammo := Config.pistol_magazine
+var jet_cd_left := 0.0
 
 var _posture := Posture.STAND
 var _col: CollisionShape3D
@@ -19,6 +28,8 @@ var _jumps_left := 2
 var _dash_time_left := 0.0
 var _dash_cd_left := 0.0
 var _dash_dir := 1.0
+var _jet_time_left := 0.0
+var _jet_dir := 1.0
 var _facing := 1.0
 
 # 勾爪
@@ -36,6 +47,9 @@ func _ready() -> void:
 	_ensure_input()
 	_build_body()
 	_build_grapple_visuals()
+	var hud = HUD_SCRIPT.new()
+	add_child(hud)
+	hud.bind(self)
 	global_position = spawn_point
 
 
@@ -47,6 +61,8 @@ func _ensure_input() -> void:
 	_add_action("crouch", [KEY_C])
 	_add_action("prone", [KEY_Z])
 	_add_action("grapple", [KEY_T])
+	_add_action("jet", [KEY_CTRL])
+	_add_action("debug_empty_battery", [KEY_0])  # 调试用：清空电量，上线前删除
 
 
 func _add_action(action: String, keys: Array) -> void:
@@ -85,7 +101,7 @@ func _build_grapple_visuals() -> void:
 	sphere.material = _marker_mat
 	_marker = MeshInstance3D.new()
 	_marker.mesh = sphere
-	_marker.top_level = true  # 用世界坐标
+	_marker.top_level = true
 	add_child(_marker)
 
 	var rope_mat := StandardMaterial3D.new()
@@ -136,7 +152,7 @@ func _update_posture() -> void:
 	var target_h := _height_for(wanted)
 	var cur_h := _shape.size.y
 	if target_h > cur_h and test_move(global_transform, Vector3(0, target_h - cur_h, 0)):
-		return  # 头顶被挡住，保持当前姿态
+		return
 	_posture = wanted
 	_set_height(target_h)
 
@@ -147,7 +163,6 @@ func _chest() -> Vector3:
 	return global_position + Vector3(0, _shape.size.y * 0.5, 0)
 
 
-# 鼠标在 Z=0 平面上的世界坐标（正交相机用射线与平面求交）。
 func _mouse_world_point() -> Vector3:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
@@ -162,7 +177,6 @@ func _mouse_world_point() -> Vector3:
 	return p
 
 
-# 每帧更新锚点：从胸口朝鼠标打一条射线，命中的第一个表面且在射程内 = 绿色可勾。
 func _update_aim() -> void:
 	var chest := _chest()
 	var raw := _mouse_world_point() - chest
@@ -182,14 +196,12 @@ func _update_aim() -> void:
 		_marker.global_position = chest + dir * Config.grapple_range
 
 
-# 拉向锚点：忽略重力和输入；到达或撞到东西就松开。
-func _grapple_step(delta: float) -> void:
+func _grapple_step(_delta: float) -> void:
 	var to := _grapple_target - global_position
 	to.z = 0.0
 	if to.length() <= Config.grapple_arrive_distance:
 		_end_grapple()
 		return
-
 	velocity = to.normalized() * Config.grapple_speed
 	velocity.z = 0.0
 	move_and_slide()
@@ -216,6 +228,13 @@ func _update_rope() -> void:
 # ---------- 主循环 ----------
 
 func _physics_process(delta: float) -> void:
+	if Input.is_action_just_pressed("debug_empty_battery"):
+		battery = 0.0
+
+	battery = minf(float(Config.battery_max), battery + Config.battery_regen_per_sec * delta)
+	jet_cd_left = maxf(0.0, jet_cd_left - delta)
+	_dash_cd_left = maxf(0.0, _dash_cd_left - delta)
+
 	_update_aim()
 	if not _grapple_active and Input.is_action_just_pressed("grapple") and _anchor_valid:
 		_grapple_active = true
@@ -227,23 +246,31 @@ func _physics_process(delta: float) -> void:
 
 	_update_posture()
 
-	_dash_cd_left = maxf(0.0, _dash_cd_left - delta)
 	if is_on_floor():
 		_jumps_left = 2
 
 	var dir := Input.get_axis("move_left", "move_right")
 	if dir != 0.0:
 		_facing = signf(dir)
-	var running := Input.is_action_pressed("run") and _posture == Posture.STAND
+	var has_power := battery > 0.0001
+	var running := Input.is_action_pressed("run") and _posture == Posture.STAND and has_power
 
-	# 点按 Shift 冲刺（只在站立时，有 CD）
-	if Input.is_action_just_pressed("run") and _posture == Posture.STAND and _dash_cd_left <= 0.0:
+	# 点按 Shift 冲刺（站立、有电、有 CD）
+	if Input.is_action_just_pressed("run") and _posture == Posture.STAND and has_power and _dash_cd_left <= 0.0:
 		_dash_time_left = Config.dash_time
 		_dash_cd_left = Config.dash_cooldown
 		_dash_dir = dir if dir != 0.0 else _facing
 
-	# 跳跃：一段 1H，空中再按一次为二段（总高 2H）
-	if Input.is_action_just_pressed("jump") and _posture != Posture.PRONE and _jumps_left > 0:
+	# 喷气（Ctrl）：需要电量 >= 3 格才能启动，启动后不耗电，可用到 0
+	if Input.is_action_just_pressed("jet") and _posture != Posture.PRONE \
+			and jet_cd_left <= 0.0 and battery >= Config.battery_start_threshold:
+		_jet_time_left = Config.jet_duration
+		jet_cd_left = Config.jet_cooldown
+		_jet_dir = _facing
+
+	# 跳跃：地面一段 1H；空中二段（总高 2H）需要有电
+	if Input.is_action_just_pressed("jump") and _posture != Posture.PRONE and _jumps_left > 0 \
+			and (is_on_floor() or has_power):
 		velocity.y = Config.jump_velocity
 		_jumps_left -= 1
 
@@ -253,15 +280,19 @@ func _physics_process(delta: float) -> void:
 	elif velocity.y < 0.0:
 		velocity.y = 0.0
 
-	# 水平
-	if _dash_time_left > 0.0:
+	# 水平：喷气 > 冲刺 > 正常移动
+	if _jet_time_left > 0.0:
+		_jet_time_left -= delta
+		velocity.x = _jet_dir * Config.jet_distance / Config.jet_duration
+		velocity.y = 0.0
+	elif _dash_time_left > 0.0:
 		_dash_time_left -= delta
 		velocity.x = _dash_dir * Config.dash_speed
 		velocity.y = 0.0
 	elif dir != 0.0:
 		velocity.x = dir * _speed_for(_posture, running)
 	elif is_on_floor():
-		velocity.x = 0.0  # 空中保持惯性
+		velocity.x = 0.0
 
 	velocity.z = 0.0
 	move_and_slide()
@@ -272,7 +303,12 @@ func _physics_process(delta: float) -> void:
 func respawn() -> void:
 	global_position = spawn_point
 	velocity = Vector3.ZERO
+	hp = Config.max_hp
+	battery = float(Config.battery_max)
+	ammo = Config.pistol_magazine
+	jet_cd_left = 0.0
 	_jumps_left = 2
 	_dash_time_left = 0.0
+	_jet_time_left = 0.0
 	_grapple_active = false
 	_update_rope()
