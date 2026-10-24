@@ -14,6 +14,15 @@ const ROWS := 11
 const TUNNEL_COL := 18
 const TUNNEL_COLS := 2
 
+# 方块上的名字标签（英文，默认字体可直接显示）
+const LABEL_TEXT := {
+	"Platform": "Platform 4H",
+	"Barrier": "Barrier 3H",
+	"TunnelRoof": "Tunnel 0.4H (crawl only)",
+	"InfectedGapMarker": "Infected gap 3H",
+	"InfectedDoor": "Door || 2H (EMP to clear)",
+}
+
 const COLOR_WALL := Color(0.35, 0.35, 0.38)
 const COLOR_FLOOR := Color(0.45, 0.45, 0.5)
 const COLOR_PLATFORM := Color(0.6, 0.6, 0.7)
@@ -61,6 +70,8 @@ func _add_box(x0: float, x1: float, y0: float, y1: float, color: Color, label: S
 
 	body.position = center
 	add_child(body)
+	if LABEL_TEXT.has(label):
+		_name_label(Vector3(center.x, y1 + 0.3, 0.0), LABEL_TEXT[label])
 
 
 # 按格子坐标加一个方块：左上角格 (col,row)，宽 w 格，高 h 格。
@@ -96,6 +107,7 @@ func _build_elements() -> void:
 	marker.mesh = m
 	marker.position = Vector3((7 + 1.5) * H, -0.1, 0.0)
 	add_child(marker)
+	_name_label(Vector3((7 + 1.5) * H, 0.6, 0.0), LABEL_TEXT["InfectedGapMarker"])
 
 	# 平台：col 13..16, row 4，宽 4 格
 	_cell_box(13, 4, 4, 1, COLOR_PLATFORM, "Platform")
@@ -118,6 +130,7 @@ func _build_door() -> void:
 	door.set("infected", true)
 	door.position = Vector3(29.5 * H, 1.8 + H, 0.0)
 	add_child(door)
+	_name_label(Vector3(29.5 * H, 1.8 + 2.0 * H + 0.3, 0.0), LABEL_TEXT["InfectedDoor"])
 
 
 func _build_kill_zone() -> void:
@@ -167,6 +180,18 @@ func _build_tunnel_zone() -> void:
 	area.body_exited.connect(func(b: Node3D) -> void:
 		if b.has_method("set_in_tunnel"):
 			b.set_in_tunnel(false))
+
+
+# 生成一个始终正对镜头的文字标签
+func _name_label(pos: Vector3, text: String) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = 48
+	l.pixel_size = 0.01
+	l.outline_size = 8
+	l.no_depth_test = true
+	l.position = pos
+	add_child(l)
 
 
 func _on_kill_zone_entered(body: Node3D) -> void:

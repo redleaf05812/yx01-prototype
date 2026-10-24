@@ -47,6 +47,14 @@ func _ready() -> void:
 
 	_player = get_tree().get_first_node_in_group("player")
 	add_to_group("spider")
+	var label := Label3D.new()
+	label.text = "Spider (sight 6H)"
+	label.font_size = 48
+	label.pixel_size = 0.01
+	label.outline_size = 8
+	label.no_depth_test = true
+	label.position = Vector3(0, 0.9, 0)
+	add_child(label)
 	if _player != null:
 		add_collision_exception_with(_player)
 	_target_x = patrol_right
