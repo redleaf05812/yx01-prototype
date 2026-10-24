@@ -1,22 +1,22 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://c0ldgmspup68g"]
 
-[ext_resource type="Script" path="res://scripts/room_builder.gd" id="1_room"]
-[ext_resource type="Script" path="res://scripts/player.gd" id="2_player"]
-[ext_resource type="Script" path="res://scripts/camera_follow.gd" id="3_cam"]
+[ext_resource type="Script" uid="uid://byp3g7jn7na1c" path="res://scripts/room_builder.gd" id="1_room"]
+[ext_resource type="Script" uid="uid://cuyw5opfgty8i" path="res://scripts/player.gd" id="2_player"]
+[ext_resource type="Script" uid="uid://cag442t2fhva3" path="res://scripts/camera_follow.gd" id="3_cam"]
 
-[node name="Room01" type="Node3D"]
+[node name="Room01" type="Node3D" unique_id=561606019]
 script = ExtResource("1_room")
 
-[node name="Camera3D" type="Camera3D" parent="."]
+[node name="Camera3D" type="Camera3D" parent="." unique_id=576273134]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 9.9, 10)
 projection = 1
-size = 20.25
 current = true
+size = 20.25
 script = ExtResource("3_cam")
 target_path = NodePath("../Player")
 
-[node name="Player" type="CharacterBody3D" parent="."]
+[node name="Player" type="CharacterBody3D" parent="." unique_id=1252560940]
 script = ExtResource("2_player")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=614501079]
 transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 10, 10)

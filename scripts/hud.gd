@@ -21,14 +21,27 @@ func _build() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
-	# 屏幕上方的操作提示（原型用占位文字，后续可以换成教学提示）
+	# 屏幕上方的操作提示：深色底 + 三行短文字，避免小分辨率下被截断（占位文字，后续可换成教学提示）
+	var hint_panel := PanelContainer.new()
+	hint_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	hint_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	hint_panel.offset_top = 8
+	hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var hint_style := StyleBoxFlat.new()
+	hint_style.bg_color = Color(0, 0, 0, 0.55)
+	hint_style.set_corner_radius_all(6)
+	hint_style.content_margin_left = 12
+	hint_style.content_margin_right = 12
+	hint_style.content_margin_top = 6
+	hint_style.content_margin_bottom = 6
+	hint_panel.add_theme_stylebox_override("panel", hint_style)
 	var hint := Label.new()
-	hint.text = "A/D move  Space jump  C crouch  Z crawl  Shift run/dash  Ctrl jet  Q stealth  T grapple  1/3 switch  LMB shoot/throw  RMB impact  R reload  F door  0 empty battery (debug)"
-	hint.add_theme_font_size_override("font_size", 18)
-	hint.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	hint.text = "A/D move   Space jump   C crouch   Z crawl   Shift run/dash\nCtrl jet   Q stealth   T grapple   R reload   F door\nLMB shoot / EMP throw   RMB EMP impact   1/3 switch   0 empty battery (debug)"
+	hint.add_theme_font_size_override("font_size", 16)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.modulate = Color(1, 1, 1, 0.85)
-	root.add_child(hint)
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint_panel.add_child(hint)
+	root.add_child(hint_panel)
 
 	# 左下：血量数字 + 电量 10 格（从底边向上长）
 	var left := VBoxContainer.new()
