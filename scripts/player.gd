@@ -4,7 +4,7 @@ extends CharacterBody3D
 # 原点 = 脚底中心。2.5D：Z 锁定为 0。
 # 假设（文档未给）：身体宽 0.6 m；二段跳 = 与一段跳同速度；空中保持水平速度；
 #   勾爪锚点 = 瞄准射线第一个命中的表面，且该表面在 grapple_anchor 组里（平台/阻拦点/通道顶）；
-#   冲刺/跑/空中二段跳 在电量为 0 时不可用；喷气只需电量 >= 3 格启动（启动后可用到 0）。
+#   冲刺/跑/空中二段跳 在电量为 0 时不可用；喷气需电量 >= 3 格启动，启动时扣 3 格（自定）。
 
 enum Posture { STAND, CROUCH, PRONE }
 
@@ -270,6 +270,7 @@ func _physics_process(delta: float) -> void:
 			and jet_cd_left <= 0.0 and battery >= Config.battery_start_threshold:
 		_jet_time_left = Config.jet_duration
 		jet_cd_left = Config.jet_cooldown
+		battery -= Config.jet_battery_cost  # 每次喷气扣 3 格（启动门槛 >= 3 保证不会扣成负数）
 		_jet_dir = _facing
 
 	# 跳跃：地面一段 1H；空中二段（总高 2H）需要有电

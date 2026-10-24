@@ -42,6 +42,7 @@ var reload_cost := 1                    # 格
 var jet_distance := 5.4                 # 540 uu (3H)
 var jet_duration := 0.4                 # s
 var jet_cooldown := 2.5                 # s
+var jet_battery_cost := 3.0              # 格：每次喷气扣除（自定，文档未给）
 
 # ---- 勾爪 ----
 var grapple_range := 7.2                # 720 uu (4H)
