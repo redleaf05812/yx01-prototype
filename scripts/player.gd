@@ -20,6 +20,7 @@ var ammo := Config.pistol_magazine
 var jet_cd_left := 0.0
 var stealth_on := false
 var stealth_cd_left := 0.0
+var in_tunnel := false
 
 var _posture := Posture.STAND
 var _col: CollisionShape3D
@@ -165,6 +166,21 @@ func _update_posture() -> void:
 	_set_height(target_h)
 
 
+# ---------- 隧道 ----------
+
+# 进入隧道：只能走和爬。其它技能（跳、冲刺、喷气、勾爪、隐身）全部锁住，并立刻结束正在进行的效果。
+func set_in_tunnel(v: bool) -> void:
+	in_tunnel = v
+	if v:
+		if stealth_on:
+			_stop_stealth()
+		_jet_time_left = 0.0
+		_dash_time_left = 0.0
+		if _grapple_active:
+			_end_grapple()
+			_update_rope()
+
+
 # ---------- 隐身 / 受伤 ----------
 
 func _stop_stealth() -> void:
@@ -285,7 +301,7 @@ func _physics_process(delta: float) -> void:
 	_iframes_left = maxf(0.0, _iframes_left - delta)
 
 	_update_aim()
-	if not _grapple_active and Input.is_action_just_pressed("grapple") and _anchor_valid:
+	if not _grapple_active and Input.is_action_just_pressed("grapple") and _anchor_valid and not in_tunnel:
 		_grapple_active = true
 		_grapple_target = _anchor
 	if _grapple_active:
@@ -309,7 +325,7 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("stealth"):
 		if stealth_on:
 			_stop_stealth()
-		elif stealth_cd_left <= 0.0 and battery >= Config.battery_start_threshold:
+		elif stealth_cd_left <= 0.0 and battery >= Config.battery_start_threshold and not in_tunnel:
 			stealth_on = true
 	if stealth_on:
 		battery -= Config.stealth_cost_per_sec * delta
@@ -318,14 +334,14 @@ func _physics_process(delta: float) -> void:
 			_stop_stealth()
 
 	# 点按 Shift 冲刺（站立、有电、有 CD）
-	if Input.is_action_just_pressed("run") and _posture == Posture.STAND and has_power and _dash_cd_left <= 0.0:
+	if Input.is_action_just_pressed("run") and _posture == Posture.STAND and has_power and _dash_cd_left <= 0.0 and not in_tunnel:
 		_dash_time_left = Config.dash_time
 		_dash_cd_left = Config.dash_cooldown
 		_dash_dir = dir if dir != 0.0 else _facing
 
 	# 喷气（Ctrl）：需要电量 >= 3 格才能启动，启动后不耗电，可用到 0
 	if Input.is_action_just_pressed("jet") and _posture != Posture.PRONE \
-			and jet_cd_left <= 0.0 and battery >= Config.battery_start_threshold:
+			and jet_cd_left <= 0.0 and battery >= Config.battery_start_threshold and not in_tunnel:
 		_jet_time_left = Config.jet_duration
 		jet_cd_left = Config.jet_cooldown
 		battery -= Config.jet_battery_cost  # 每次喷气扣 3 格（启动门槛 >= 3 保证不会扣成负数）
@@ -333,7 +349,7 @@ func _physics_process(delta: float) -> void:
 
 	# 跳跃：地面一段 1H；空中二段（总高 2H）需要有电
 	if Input.is_action_just_pressed("jump") and _posture != Posture.PRONE and _jumps_left > 0 \
-			and (is_on_floor() or has_power):
+			and (is_on_floor() or has_power) and not in_tunnel:
 		velocity.y = Config.jump_velocity
 		_jumps_left -= 1
 

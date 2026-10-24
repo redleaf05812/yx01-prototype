@@ -8,6 +8,9 @@ enum State { PATROL, CHASE, SEARCH }
 
 @export var patrol_left := 20.0
 @export var patrol_right := 35.0
+# 禁区（隧道）：蜘蛛中心不能进入 [no_go_min, no_go_max]
+@export var no_go_min := 0.0
+@export var no_go_max := 0.0
 
 var hp := 0.0
 var _state := State.PATROL
@@ -78,6 +81,7 @@ func _physics_process(delta: float) -> void:
 	velocity.z = 0.0
 	move_and_slide()
 	global_position.z = 0.0
+	_enforce_no_go()
 
 
 func _set_state(s: State) -> void:
@@ -89,6 +93,16 @@ func _set_state(s: State) -> void:
 			# 回巡逻：走向离自己最近的那个端点
 			_target_x = patrol_left if absf(global_position.x - patrol_left) < absf(global_position.x - patrol_right) else patrol_right
 			_pause_left = 0.0
+
+
+# 禁区硬限制：如果被推进禁区，拉回到禁区边界并停下。
+func _enforce_no_go() -> void:
+	if no_go_max <= no_go_min:
+		return
+	var x := global_position.x
+	if x > no_go_min and x < no_go_max:
+		global_position.x = no_go_min if (x - no_go_min) < (no_go_max - x) else no_go_max
+		velocity.x = 0.0
 
 
 # 脚下边缘检测：前方一小步处有没有地面。没有 = 缺口边缘。

@@ -7,8 +7,12 @@ extends Node3D
 const COLS := 36
 
 # 只有这些表面可以被勾爪钩住（墙、地、天花板、门不行）
-const GRAPPLE_ANCHORS := ["Platform", "Barrier", "TunnelRoof"]
+const GRAPPLE_ANCHORS := ["Platform", "Barrier"]  # 隧道顶不可勾
 const ROWS := 11
+
+# 低矮通道（隧道）占第 18–19 列，净高 0.4H。蜘蛛不能进入。
+const TUNNEL_COL := 18
+const TUNNEL_COLS := 2
 
 const COLOR_WALL := Color(0.35, 0.35, 0.38)
 const COLOR_FLOOR := Color(0.45, 0.45, 0.5)
@@ -26,6 +30,7 @@ func _ready() -> void:
 	_build_room()
 	_build_elements()
 	_build_kill_zone()
+	_build_tunnel_zone()
 	_build_spider()
 
 
@@ -128,7 +133,30 @@ func _build_spider() -> void:
 	spider.name = "Spider"
 	spider.set_script(SPIDER_SCRIPT)
 	spider.position = Vector3((14 + 0.5) * H, 1.8, 0.0)
+	# 蜘蛛不能进隧道：巡逻右端停在隧道前，并设置硬限制（追击时也进不去）
+	spider.set("patrol_right", TUNNEL_COL * H - 1.0)
+	spider.set("no_go_min", TUNNEL_COL * H - 0.4)
+	spider.set("no_go_max", (TUNNEL_COL + TUNNEL_COLS) * H + 0.4)
 	add_child(spider)
+
+
+# 隧道区域：玩家进入时锁住除走/爬以外的所有技能（见 player.gd set_in_tunnel）
+func _build_tunnel_zone() -> void:
+	var area := Area3D.new()
+	area.name = "TunnelZone"
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(TUNNEL_COLS * H, 0.4 * H, H)
+	shape.shape = box
+	area.add_child(shape)
+	area.position = Vector3((TUNNEL_COL + TUNNEL_COLS * 0.5) * H, 1.8 + 0.2 * H, 0.0)
+	add_child(area)
+	area.body_entered.connect(func(b: Node3D) -> void:
+		if b.has_method("set_in_tunnel"):
+			b.set_in_tunnel(true))
+	area.body_exited.connect(func(b: Node3D) -> void:
+		if b.has_method("set_in_tunnel"):
+			b.set_in_tunnel(false))
 
 
 func _on_kill_zone_entered(body: Node3D) -> void:
