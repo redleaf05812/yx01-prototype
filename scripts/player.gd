@@ -3,7 +3,7 @@ extends CharacterBody3D
 # 玩家控制器：走 / 跑 / 蹲 / 趴 / 一段跳 / 二段跳 / 冲刺 / 勾爪 / 喷气 / 电池 (M1–M3)。
 # 原点 = 脚底中心。2.5D：Z 锁定为 0。
 # 假设（文档未给）：身体宽 0.6 m；二段跳 = 与一段跳同速度；空中保持水平速度；
-#   勾爪锚点 = 瞄准射线第一个命中的表面且在射程内；
+#   勾爪锚点 = 瞄准射线第一个命中的表面，且该表面在 grapple_anchor 组里（平台/阻拦点/通道顶）；
 #   冲刺/跑/空中二段跳 在电量为 0 时不可用；喷气只需电量 >= 3 格启动（启动后可用到 0）。
 
 enum Posture { STAND, CROUCH, PRONE }
@@ -186,11 +186,15 @@ func _update_aim() -> void:
 	query.exclude = [get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 
-	_anchor_valid = not hit.is_empty()
+	# 第一个命中的表面必须是可勾的锚点（墙/地/天花板会挡住并显示红色）
+	_anchor_valid = not hit.is_empty() and hit.collider.is_in_group("grapple_anchor")
 	if _anchor_valid:
 		_anchor = hit.position
 		_marker_mat.albedo_color = Color.GREEN
 		_marker.global_position = _anchor
+	elif not hit.is_empty():
+		_marker_mat.albedo_color = Color.RED
+		_marker.global_position = hit.position
 	else:
 		_marker_mat.albedo_color = Color.RED
 		_marker.global_position = chest + dir * Config.grapple_range

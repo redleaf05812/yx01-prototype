@@ -5,6 +5,9 @@ extends Node3D
 # 房间 36 格宽 × 11 格高。地面在 row 10。
 
 const COLS := 36
+
+# 只有这些表面可以被勾爪钩住（墙、地、天花板、门不行）
+const GRAPPLE_ANCHORS := ["Platform", "Barrier", "TunnelRoof"]
 const ROWS := 11
 
 const COLOR_WALL := Color(0.35, 0.35, 0.38)
@@ -29,6 +32,8 @@ func _ready() -> void:
 func _add_box(x0: float, x1: float, y0: float, y1: float, color: Color, label: String) -> void:
 	var body := StaticBody3D.new()
 	body.name = label
+	if label in GRAPPLE_ANCHORS:
+		body.add_to_group("grapple_anchor")
 	var depth := H
 	var size := Vector3(x1 - x0, y1 - y0, depth)
 	var center := Vector3((x0 + x1) * 0.5, (y0 + y1) * 0.5, 0.0)
