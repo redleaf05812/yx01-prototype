@@ -32,9 +32,7 @@ var _shape: BoxShape3D
 var _mesh: MeshInstance3D
 var _box: BoxMesh
 var _jumps_left := 2
-var _dash_time_left := 0.0
-var _dash_cd_left := 0.0
-var _dash_dir := 1.0
+var _stance := Posture.STAND  # 玩家选择的姿态（C/Z 按一下切换）；实际姿态受头顶空间限制
 var _jet_time_left := 0.0
 var _jet_dir := 1.0
 var _facing := 1.0
@@ -102,7 +100,8 @@ func _ensure_input() -> void:
 	_add_action("interact", [KEY_F])
 	_add_action("slot_pistol", [KEY_1])
 	_add_action("slot_emp", [KEY_3])
-	_add_action("fire_mode", [KEY_2])
+	_add_action("slot_weapon2", [KEY_2])  # 2 号武器位（暂无武器）
+	_add_action("fire_mode", [KEY_B])
 	_add_mouse_action("fire", MOUSE_BUTTON_LEFT)
 	_add_mouse_action("alt_fire", MOUSE_BUTTON_RIGHT)
 
@@ -185,11 +184,12 @@ func _speed_for(p: Posture, running: bool) -> float:
 
 # 站起来前要确认头顶有空间（否则卡在 0.4H 通道里）。
 func _update_posture() -> void:
-	var wanted := Posture.STAND
-	if Input.is_action_pressed("prone"):
-		wanted = Posture.PRONE
-	elif Input.is_action_pressed("crouch"):
-		wanted = Posture.CROUCH
+	# 按一下切换：C 站⇄蹲，Z 站⇄趴。站不起来（头顶有东西）时保持当前姿态，直到空间足够
+	if Input.is_action_just_pressed("prone"):
+		_stance = Posture.STAND if _stance == Posture.PRONE else Posture.PRONE
+	if Input.is_action_just_pressed("crouch"):
+		_stance = Posture.STAND if _stance == Posture.CROUCH else Posture.CROUCH
+	var wanted := _stance
 
 	var target_h := _height_for(wanted)
 	var cur_h := _shape.size.y
@@ -246,12 +246,16 @@ func _update_combat(delta: float) -> void:
 
 	if kind == 0:
 		var can_shoot := _can_act() and not reloading and ammo > 0 and _fire_cd <= 0.0
-		if Input.is_action_just_pressed("fire") and can_shoot:
+		if can_shoot and Input.is_action_just_pressed("fire"):
+			# 左键 = 主射击：按 B 选的模式（单发 / 三连发）
 			if fire_mode == 0:
 				_fire_shot()
 				_fire_cd = Config.pistol_fire_interval
 			else:
 				_burst_left = Config.triple_count
+		elif can_shoot and Input.is_action_just_pressed("alt_fire"):
+			# 右键 = 副射击：三连发（不受 B 的模式影响）
+			_burst_left = Config.triple_count
 		# 三连发：同一把枪连续打出，发与发之间有间隔（每发都会抬枪）
 		if _burst_left > 0 and (not _can_act() or reloading or ammo <= 0):
 			_burst_left = 0
@@ -338,7 +342,6 @@ func set_in_tunnel(v: bool) -> void:
 		if stealth_on:
 			_stop_stealth()
 		_jet_time_left = 0.0
-		_dash_time_left = 0.0
 		if _grapple_active:
 			_end_grapple()
 			_update_rope()
@@ -480,7 +483,7 @@ func _grab() -> void:
 	var off := _chest() - anc
 	off.z = 0.0
 	_swing_anchor = anc
-	_rope_len = maxf(off.length(), 1.0)
+	_rope_len = Config.H  # 挂在锚点下方 1H
 	_swing_theta = atan2(off.x, -off.y)
 	var tangent := Vector3(cos(_swing_theta), sin(_swing_theta), 0.0)
 	_swing_omega = velocity.dot(tangent) / _rope_len
@@ -532,7 +535,6 @@ func _update_rope() -> void:
 func _physics_process(delta: float) -> void:
 	battery = minf(float(Config.battery_max), battery + Config.battery_regen_per_sec * delta)
 	jet_cd_left = maxf(0.0, jet_cd_left - delta)
-	_dash_cd_left = maxf(0.0, _dash_cd_left - delta)
 	stealth_cd_left = maxf(0.0, stealth_cd_left - delta)
 	_iframes_left = maxf(0.0, _iframes_left - delta)
 
@@ -584,7 +586,7 @@ func _physics_process(delta: float) -> void:
 	if dir != 0.0:
 		_facing = signf(dir)
 	var has_power := battery > 0.0001
-	var running := Input.is_action_pressed("run") and _posture == Posture.STAND and has_power
+	var running := Input.is_action_pressed("run") and _posture == Posture.STAND
 	_running_now = running and dir != 0.0
 
 	# 隐身（Q 切换）：启动需 >= 3 格，持续每秒耗 1 格，关闭后 3 s 内置 CD
@@ -598,12 +600,6 @@ func _physics_process(delta: float) -> void:
 		if battery <= 0.0:
 			battery = 0.0
 			_stop_stealth()
-
-	# 点按 Shift 冲刺（站立、有电、有 CD）
-	if Input.is_action_just_pressed("run") and _posture == Posture.STAND and has_power and _dash_cd_left <= 0.0 and not in_tunnel:
-		_dash_time_left = Config.dash_time
-		_dash_cd_left = Config.dash_cooldown
-		_dash_dir = dir if dir != 0.0 else _facing
 
 	# 喷气（Ctrl）：需要电量 >= 3 格才能启动，启动后不耗电，可用到 0
 	if Input.is_action_just_pressed("jet") and _posture != Posture.PRONE \
@@ -658,10 +654,6 @@ func _physics_process(delta: float) -> void:
 	elif _jet_time_left > 0.0:
 		_jet_time_left -= delta
 		velocity.x = _jet_dir * Config.jet_distance / Config.jet_duration
-		velocity.y = 0.0
-	elif _dash_time_left > 0.0:
-		_dash_time_left -= delta
-		velocity.x = _dash_dir * Config.dash_speed
 		velocity.y = 0.0
 	elif _jump_committed and not is_on_floor():
 		velocity.x = _jump_vx

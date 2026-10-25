@@ -11,14 +11,11 @@ const H := 1.8                          # 1H = 180 uu
 
 # ---- 玩家移动 ----
 var walk_speed := 3.6                   # 自定：原 2.25 太慢，改为 2 H/s
-var run_speed := 3.96                   # 自定：走路 × 1.1
+var run_speed := 5.4                    # 自定：走路 × 1.5，不耗电
 var crouch_speed := 2.88                # 自定：走路 × 0.8
 var crawl_speed := 2.16                 # 自定：走路 × 0.6
 var jump_velocity := 11.62              # 1162 uu/s (一段跳 1H)
 var gravity := 37.5                     # 3750 uu/s²
-var dash_speed := 16.87                 # 1687 uu/s
-var dash_time := 0.15                   # s
-var dash_cooldown := 0.5                # s
 # 跳跃手感（Metroidvania 式，自定）：满跳高度不变，只改松键截断、下落速度、容错
 var jump_cut_multiplier := 0.5          # 松开跳跃键时上升速度 × 此值（可变跳高）
 var fall_gravity_multiplier := 1.6      # 下落时重力 × 此值（下落更快，手感更干脆）
