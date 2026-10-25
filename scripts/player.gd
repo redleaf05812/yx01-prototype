@@ -56,6 +56,12 @@ var _rope: MeshInstance3D
 var _rope_mesh: ImmediateMesh
 var _grapple_hold := false   # 已勾住：静止挂在锚点上
 var _hold_pos := Vector3.ZERO
+var _anchor_node: Node = null     # 当前瞄准到的锚点
+var _grapple_node: Node = null    # 本次勾爪绑定的锚点
+var _pullup_left := 0.0           # 悬崖拉上剩余时间
+var _pullup_dir := 1.0
+var _jump_committed := false      # 一段跳已起跳：空中水平方向锁定，二段跳后恢复自由控制
+var _jump_vx := 0.0
 
 # 跳跃容错
 var _coyote_left := 0.0
@@ -401,6 +407,7 @@ func _update_aim() -> void:
 
 	# 第一个命中的表面必须是可勾的锚点（墙/地/天花板会挡住并显示红色）
 	_anchor_valid = not hit.is_empty() and hit.collider.is_in_group("grapple_anchor")
+	_anchor_node = hit.collider if _anchor_valid else null
 	if _anchor_valid:
 		_anchor = hit.position
 		_marker_mat.albedo_color = Color.GREEN
@@ -414,11 +421,11 @@ func _update_aim() -> void:
 
 
 func _grapple_step(_delta: float) -> void:
-	# 拉向锚点（用胸口对准锚点）；到达或撞到东西就停下，进入「静止悬挂」状态
+	# 拉向锚点（用胸口对准锚点）；到达或撞到锚点就结束拉拽；撞到墙则断绳下落
 	var to := _grapple_target - _chest()
 	to.z = 0.0
 	if to.length() <= Config.grapple_arrive_distance:
-		_grab()
+		_on_anchor_reached()
 		return
 	velocity = to.normalized() * Config.grapple_speed
 	velocity.z = 0.0
@@ -426,12 +433,12 @@ func _grapple_step(_delta: float) -> void:
 	global_position.z = 0.0
 	if get_slide_collision_count() > 0:
 		if _touched_anchor():
-			_grab()
+			_on_anchor_reached()
 		else:
 			_end_grapple()  # 被墙/平台挡住：绳子断开，直接下落
 
 
-# 撞到的是锚点（而不是墙）才算勾住
+# 撞到的是锚点（不是墙）才算勾住
 func _touched_anchor() -> bool:
 	for i in get_slide_collision_count():
 		var c = get_slide_collision(i).get_collider()
@@ -440,7 +447,27 @@ func _touched_anchor() -> bool:
 	return false
 
 
-# 勾住锚点后：完全静止（不受重力、不能移动），直到再按 T 松开或按跳跃起跳
+# 到达锚点：悬崖边锚点 → 自动拉上；空中锚点 → 悬挂
+func _on_anchor_reached() -> void:
+	var kind := "hang"
+	if _grapple_node != null:
+		kind = str(_grapple_node.get_meta("anchor_kind", "hang"))
+	if kind == "ledge":
+		_start_pullup()
+	else:
+		_grab()
+
+
+func _start_pullup() -> void:
+	_grapple_active = false
+	_grapple_hold = false
+	_pullup_left = Config.pullup_time
+	var d := signf(_grapple_target.x - global_position.x)
+	_pullup_dir = d if d != 0.0 else _facing
+	velocity = Vector3.ZERO
+
+
+# 空中锚点：完全静止悬挂，直到再按 T 松开或按跳跃起跳
 func _grab() -> void:
 	_grapple_active = false
 	_grapple_hold = true
@@ -491,8 +518,21 @@ func _physics_process(delta: float) -> void:
 	if not _grapple_active and not _grapple_hold and Input.is_action_just_pressed("grapple") and _anchor_valid and not in_tunnel:
 		_grapple_active = true
 		_grapple_target = _anchor
+		_grapple_node = _anchor_node
 	if _grapple_active:
 		_grapple_step(delta)
+		_update_rope()
+		return
+
+	# 悬崖拉上：向上 + 向前冲一小段，之后自然落到崖顶
+	if _pullup_left > 0.0:
+		_pullup_left -= delta
+		velocity = Vector3(_pullup_dir * Config.pullup_forward, Config.pullup_up, 0.0)
+		move_and_slide()
+		global_position.z = 0.0
+		if _pullup_left <= 0.0:
+			_jumps_left = 2
+			_jump_committed = false
 		_update_rope()
 		return
 
@@ -503,6 +543,7 @@ func _physics_process(delta: float) -> void:
 
 	if is_on_floor():
 		_jumps_left = 2
+		_jump_committed = false
 
 	var dir := Input.get_axis("move_left", "move_right")
 	if dir != 0.0:
@@ -550,6 +591,13 @@ func _physics_process(delta: float) -> void:
 	if _jump_buffer_left > 0.0 and _posture != Posture.PRONE and _jumps_left > 0 \
 			and (is_on_floor() or _coyote_left > 0.0 or has_power) and not in_tunnel:
 		velocity.y = Config.jump_velocity
+		if _jumps_left == 2:
+			# 一段跳：方向在起跳时锁定（按住哪边就往哪边，松开就直上直下）
+			_jump_committed = true
+			_jump_vx = dir * _speed_for(_posture, running) if dir != 0.0 else 0.0
+		else:
+			# 二段跳：空中完全自由控制
+			_jump_committed = false
 		_jumps_left -= 1
 		_jump_buffer_left = 0.0
 		_coyote_left = 0.0
@@ -580,6 +628,8 @@ func _physics_process(delta: float) -> void:
 		_dash_time_left -= delta
 		velocity.x = _dash_dir * Config.dash_speed
 		velocity.y = 0.0
+	elif _jump_committed and not is_on_floor():
+		velocity.x = _jump_vx
 	elif dir != 0.0:
 		velocity.x = dir * _speed_for(_posture, running)
 	elif is_on_floor():

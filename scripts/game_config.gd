@@ -53,6 +53,9 @@ var jet_battery_cost := 3.0              # 格：每次喷气扣除（自定，�
 var grapple_range := 7.2                # 720 uu (4H)
 var grapple_speed := 22.5               # 2250 uu/s
 var grapple_arrive_distance := 0.2      # 自定：到达阈值
+var pullup_up := 9.0                  # 悬崖拉上：向上速度 (m/s)
+var pullup_forward := 4.0               # 悬崖拉上：向前速度 (m/s)
+var pullup_time := 0.35                 # 悬崖拉上：持续时间 (s)，之后自然落到崖顶
 
 # ---- 手枪 ----
 var pistol_damage := 1.0

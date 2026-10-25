@@ -121,17 +121,20 @@ func _build_elements() -> void:
 
 
 # 勾爪锚点：独立小球，只有它们能被勾住（墙、地、平台、阻拦点本身都不能勾）
+# anchor_kind: "ledge" = 悬崖边，勾住后自动拉上崖顶；"hang" = 空中，勾住后悬挂静止
 func _build_anchors() -> void:
-	_add_anchor(Vector3(15 * H, (ROWS - 4) * H + 1.0, 0.0), "平台锚点")
-	_add_anchor(Vector3(24 * H, 1.8 + 3 * H + 1.0, 0.0), "阻拦点锚点")
-	_add_anchor(Vector3(20.5 * H, 1.8 + 4 * H, 0.0), "空中锚点")
+	_add_anchor(Vector3(15 * H, (ROWS - 4) * H + 1.0, 0.0), "平台锚点（悬挂）", "hang")
+	# 阻拦点左上角 = 悬崖边：锚点压在崖边上
+	_add_anchor(Vector3(23 * H, 1.8 + 3 * H + 0.1, 0.0), "悬崖边锚点（自动拉上）", "ledge")
+	_add_anchor(Vector3(20.5 * H, 1.8 + 4 * H, 0.0), "空中锚点（悬挂）", "hang")
 
 
-func _add_anchor(pos: Vector3, label: String) -> void:
+func _add_anchor(pos: Vector3, label: String, kind: String) -> void:
 	var r := 0.25
 	var body := StaticBody3D.new()
 	body.name = "GrappleAnchor"
 	body.add_to_group("grapple_anchor")
+	body.set_meta("anchor_kind", kind)
 	body.position = pos
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = COLOR_ANCHOR
