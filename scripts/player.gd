@@ -503,10 +503,24 @@ func _swing_step(delta: float) -> void:
 	if absf(_swing_theta) > Config.swing_max_angle:
 		_swing_theta = clampf(_swing_theta, -Config.swing_max_angle, Config.swing_max_angle)
 		_swing_omega = 0.0
+	# 按摆荡轨迹移动，但经过 move_and_slide，撞到墙/地/平台就不能穿过
 	var chest := _swing_anchor + Vector3(sin(_swing_theta), -cos(_swing_theta), 0.0) * _rope_len
-	global_position = chest - Vector3(0, _shape.size.y * 0.5, 0)
+	var target := chest - Vector3(0, _shape.size.y * 0.5, 0.0)
+	target.z = 0.0
+	velocity = (target - global_position) / maxf(delta, 0.0001)
+	move_and_slide()
 	global_position.z = 0.0
-	velocity = Vector3.ZERO
+	if _hit_solid():
+		_release_swing()  # 撞到东西：松开绳子，顺势下落（可能落在平台上）
+
+
+# 撞到的是实体（不是锚点）
+func _hit_solid() -> bool:
+	for i in get_slide_collision_count():
+		var c = get_slide_collision(i).get_collider()
+		if not (c is Node and c.is_in_group("grapple_anchor")):
+			return true
+	return false
 
 
 # 松开摆荡：速度 = 切线方向 × 角速度 × 绳长
@@ -567,6 +581,9 @@ func _physics_process(delta: float) -> void:
 		_grapple_active = true
 		_grapple_target = _anchor
 		_grapple_node = _anchor_node
+		# 勾爪自动站起来（蹲/趴时如果头顶有空间）
+		_stance = Posture.STAND
+		_update_posture()
 	if _grapple_active:
 		_grapple_step(delta)
 		_update_rope()
