@@ -64,6 +64,7 @@ var _jump_buffer_left := 0.0
 # 射击
 var fire_mode := 0    # 0 = 单发, 1 = 三连发
 var _recoil := 0.0    # 后坐力：枪口上抬的弧度
+var _burst_left := 0     # 三连发剩余发数
 
 
 func _ready() -> void:
