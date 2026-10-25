@@ -6,8 +6,6 @@ extends Node3D
 
 const COLS := 36
 
-# 只有这些表面可以被勾爪钩住（墙、地、天花板、门不行）
-const GRAPPLE_ANCHORS := ["Platform", "Barrier"]  # 隧道顶不可勾
 const ROWS := 11
 
 # 低矮通道（隧道）占第 18–19 列，净高 0.4H。蜘蛛不能进入。
@@ -30,6 +28,7 @@ const COLOR_BARRIER := Color(0.9, 0.5, 0.15)   # XX 阻拦点
 const COLOR_TUNNEL := Color(0.55, 0.4, 0.25)   # .. 低矮通道顶
 const COLOR_INFECTED := Color(0.4, 0.9, 0.3)   # ~ 感染区
 const COLOR_DOOR := Color(0.6, 0.2, 0.8)       # || 侵蚀的门
+const COLOR_ANCHOR := Color(1.0, 0.85, 0.2)    # 勾爪锚点（独立小球）
 
 var H: float
 
@@ -41,14 +40,13 @@ func _ready() -> void:
 	_build_kill_zone()
 	_build_tunnel_zone()
 	_build_spider()
+	_build_anchors()
 
 
 # 通用：生成一个带碰撞的长方体。x0..x1, y0..y1 为米，z 厚度 1 格。
 func _add_box(x0: float, x1: float, y0: float, y1: float, color: Color, label: String) -> void:
 	var body := StaticBody3D.new()
 	body.name = label
-	if label in GRAPPLE_ANCHORS:
-		body.add_to_group("grapple_anchor")
 	var depth := H
 	var size := Vector3(x1 - x0, y1 - y0, depth)
 	var center := Vector3((x0 + x1) * 0.5, (y0 + y1) * 0.5, 0.0)
@@ -120,6 +118,37 @@ func _build_elements() -> void:
 
 	# 侵蚀的门 ||：col 29，从地面往上 2H 高（门脚本处理侵蚀和开关）
 	_build_door()
+
+
+# 勾爪锚点：独立小球，只有它们能被勾住（墙、地、平台、阻拦点本身都不能勾）
+func _build_anchors() -> void:
+	_add_anchor(Vector3(15 * H, (ROWS - 4) * H + 1.0, 0.0), "平台锚点")
+	_add_anchor(Vector3(24 * H, 1.8 + 3 * H + 1.0, 0.0), "阻拦点锚点")
+	_add_anchor(Vector3(20.5 * H, 1.8 + 4 * H, 0.0), "空中锚点")
+
+
+func _add_anchor(pos: Vector3, label: String) -> void:
+	var r := 0.25
+	var body := StaticBody3D.new()
+	body.name = "GrappleAnchor"
+	body.add_to_group("grapple_anchor")
+	body.position = pos
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = COLOR_ANCHOR
+	var sphere := SphereMesh.new()
+	sphere.radius = r
+	sphere.height = r * 2.0
+	sphere.material = mat
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.mesh = sphere
+	body.add_child(mesh_inst)
+	var shape := CollisionShape3D.new()
+	var s := SphereShape3D.new()
+	s.radius = r
+	shape.shape = s
+	body.add_child(shape)
+	add_child(body)
+	_name_label(pos + Vector3(0, 0.5, 0), label)
 
 
 # 感染区缺口下方的死亡区：掉进去就回到出生点（玩家脚本接入后替换）。

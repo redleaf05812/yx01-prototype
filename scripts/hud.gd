@@ -36,7 +36,7 @@ func _build() -> void:
 	hint_style.content_margin_bottom = 6
 	hint_panel.add_theme_stylebox_override("panel", hint_style)
 	var hint := Label.new()
-	hint.text = "A/D 移动   空格 跳跃   C 蹲下   Z 趴下   Shift 跑步/冲刺\nCtrl 喷气   Q 隐身   T 勾爪   R 换弹   F 开门\n鼠标左键 射击/投掷EMP   右键 EMP撞击   1/3 切换"
+	hint.text = "A/D 移动   空格 跳跃   C 蹲下   Z 趴下   Shift 跑步/冲刺\nCtrl 喷气   Q 隐身   T 勾爪   R 换弹   F 开门\n鼠标左键 射击/投掷EMP   右键 EMP撞击   1 手枪  2 射击模式  3 EMP"
 	hint.add_theme_font_override("font", Config.cjk_font)
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -114,7 +114,8 @@ func _process(_delta: float) -> void:
 	elif _player.reloading:
 		_ammo_label.text = "换弹中"
 	else:
-		_ammo_label.text = "%d / %d" % [_player.ammo, Config.pistol_magazine]
+		var mode := "三连发" if _player.fire_mode == 1 else "单发"
+		_ammo_label.text = "%s  %d / %d" % [mode, _player.ammo, Config.pistol_magazine]
 
 	_slot_overlays[0].anchor_bottom = clampf(_player.jet_cd_left / Config.jet_cooldown, 0.0, 1.0)
 	_slot_overlays[1].anchor_bottom = clampf(_player.stealth_cd_left / Config.stealth_internal_cooldown, 0.0, 1.0)

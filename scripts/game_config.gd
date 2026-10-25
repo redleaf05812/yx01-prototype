@@ -10,15 +10,20 @@ extends Node
 const H := 1.8                          # 1H = 180 uu
 
 # ---- 玩家移动 ----
-var walk_speed := 2.25                  # 225 uu/s
-var run_speed := 5.62                   # 562 uu/s
-var crouch_speed := 1.35                # 135 uu/s
-var crawl_speed := 0.67                 # 67 uu/s
+var walk_speed := 3.6                   # 自定：原 2.25 太慢，改为 2 H/s
+var run_speed := 3.96                   # 自定：走路 × 1.1
+var crouch_speed := 2.88                # 自定：走路 × 0.8
+var crawl_speed := 2.16                 # 自定：走路 × 0.6
 var jump_velocity := 11.62              # 1162 uu/s (一段跳 1H)
 var gravity := 37.5                     # 3750 uu/s²
 var dash_speed := 16.87                 # 1687 uu/s
 var dash_time := 0.15                   # s
 var dash_cooldown := 0.5                # s
+# 跳跃手感（Metroidvania 式，自定）：满跳高度不变，只改松键截断、下落速度、容错
+var jump_cut_multiplier := 0.5          # 松开跳跃键时上升速度 × 此值（可变跳高）
+var fall_gravity_multiplier := 1.6      # 下落时重力 × 此值（下落更快，手感更干脆）
+var coyote_time := 0.1                  # 离开平台后仍可起跳的时间 (s)
+var jump_buffer_time := 0.1             # 落地前提前按跳跃，落地后自动起跳 (s)
 
 # ---- 玩家体型 (米) ----
 var stand_height := 1.8                 # 1H
@@ -54,6 +59,13 @@ var pistol_damage := 1.0
 var pistol_range := 9.0                 # 900 uu (5H)
 var pistol_fire_interval := 0.35        # s
 var pistol_magazine := 6
+# 三连发 / 后坐力（自定）
+var triple_spread_deg := 3.0            # 三连发扇形：左右各偏 3°
+var triple_fire_interval := 0.5         # 三连发射速 (s)
+var recoil_single := 0.05               # 单发后坐力：枪口上抬 (rad，约 2.9°)
+var recoil_triple := 0.09               # 三连发后坐力 (rad，约 5.2°)
+var recoil_max := 0.25                  # 后坐力上限 (rad，约 14°)
+var recoil_recover_per_sec := 0.5       # 后坐力回落速度 (rad/s)
 var reload_time := 1.2                  # s
 
 # ---- EMP ----

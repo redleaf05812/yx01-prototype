@@ -54,6 +54,16 @@ var _marker: MeshInstance3D
 var _marker_mat: StandardMaterial3D
 var _rope: MeshInstance3D
 var _rope_mesh: ImmediateMesh
+var _grapple_hold := false   # 已勾住：静止挂在锚点上
+var _hold_pos := Vector3.ZERO
+
+# 跳跃容错
+var _coyote_left := 0.0
+var _jump_buffer_left := 0.0
+
+# 射击
+var fire_mode := 0    # 0 = 单发, 1 = 三连发
+var _recoil := 0.0    # 后坐力：枪口上抬的弧度
 
 
 func _ready() -> void:
@@ -82,6 +92,7 @@ func _ensure_input() -> void:
 	_add_action("interact", [KEY_F])
 	_add_action("slot_pistol", [KEY_1])
 	_add_action("slot_emp", [KEY_3])
+	_add_action("fire_mode", [KEY_2])
 	_add_mouse_action("fire", MOUSE_BUTTON_LEFT)
 	_add_mouse_action("alt_fire", MOUSE_BUTTON_RIGHT)
 
@@ -202,6 +213,7 @@ func _can_act() -> bool:
 
 func _update_combat(delta: float) -> void:
 	_fire_cd = maxf(0.0, _fire_cd - delta)
+	_recoil = move_toward(_recoil, 0.0, Config.recoil_recover_per_sec * delta)
 	if reloading:
 		_reload_left -= delta
 		if _reload_left <= 0.0:
@@ -212,6 +224,8 @@ func _update_combat(delta: float) -> void:
 		kind = 0
 	if Input.is_action_just_pressed("slot_emp"):
 		kind = 1
+	if Input.is_action_just_pressed("fire_mode"):
+		fire_mode = 1 - fire_mode
 
 	# 换弹：耗 1 格电，动作 1.2 s；电量不足 1 格不能换弹
 	if Input.is_action_just_pressed("reload") and kind == 0 and not reloading \
@@ -231,14 +245,28 @@ func _update_combat(delta: float) -> void:
 			_throw_emp(true)
 
 
-# 手枪：瞬时命中（射线），第一个命中的蜘蛛扣血；门和墙挡住子弹
+# 手枪：瞬时命中（射线）。单发：一颗；三连发：三颗扇形，同样只耗 1 发弹药。
+# 后坐力：每次射击枪口向上抬一点，松开后逐渐回落。
 func _fire_pistol() -> void:
 	ammo -= 1
-	_fire_cd = Config.pistol_fire_interval
 	break_stealth()  # 隐身中开枪立刻破隐
 	var chest := _chest()
-	var end: Vector3 = chest + _aim_dir(chest) * Config.pistol_range
-	var q := PhysicsRayQueryParameters3D.create(chest, end)
+	var base := _aim_dir(chest)
+	if fire_mode == 0:
+		_fire_cd = Config.pistol_fire_interval
+		_shoot(chest, _kicked(base, 0.0))
+		_recoil = minf(_recoil + Config.recoil_single, Config.recoil_max)
+	else:
+		_fire_cd = Config.triple_fire_interval
+		var spread := deg_to_rad(Config.triple_spread_deg)
+		for a in [-spread, 0.0, spread]:
+			_shoot(chest, _kicked(base, a))
+		_recoil = minf(_recoil + Config.recoil_triple, Config.recoil_max)
+
+
+func _shoot(from: Vector3, dir: Vector3) -> void:
+	var end := from + dir * Config.pistol_range
+	var q := PhysicsRayQueryParameters3D.create(from, end)
 	q.exclude = [get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if not hit.is_empty():
@@ -246,7 +274,14 @@ func _fire_pistol() -> void:
 		var target = hit.collider
 		if target.has_method("take_hit"):
 			target.take_hit(Config.pistol_damage)
-	_spawn_tracer(chest, end)
+	_spawn_tracer(from, end)
+
+
+# 方向 = 原方向旋转扇形偏移 + 向上的后坐力（不论朝左朝右，后坐力都是往上抬）
+func _kicked(dir: Vector3, spread_rad: float) -> Vector3:
+	var side := signf(dir.x) if dir.x != 0.0 else _facing
+	var a := spread_rad + _recoil * side
+	return Vector3(dir.x * cos(a) - dir.y * sin(a), dir.x * sin(a) + dir.y * cos(a), 0.0).normalized()
 
 
 # 子弹轨迹：一闪而过的细条
@@ -377,21 +412,31 @@ func _update_aim() -> void:
 
 
 func _grapple_step(_delta: float) -> void:
-	var to := _grapple_target - global_position
+	# 拉向锚点（用胸口对准锚点）；到达或撞到东西就停下，进入「静止悬挂」状态
+	var to := _grapple_target - _chest()
 	to.z = 0.0
 	if to.length() <= Config.grapple_arrive_distance:
-		_end_grapple()
+		_grab()
 		return
 	velocity = to.normalized() * Config.grapple_speed
 	velocity.z = 0.0
 	move_and_slide()
 	global_position.z = 0.0
 	if get_slide_collision_count() > 0:
-		_end_grapple()
+		_grab()
+
+
+# 勾住后：完全静止（不受重力、不能移动），直到再按 T 松开或按跳跃起跳
+func _grab() -> void:
+	_grapple_active = false
+	_grapple_hold = true
+	_hold_pos = global_position
+	velocity = Vector3.ZERO
 
 
 func _end_grapple() -> void:
 	_grapple_active = false
+	_grapple_hold = false
 	velocity = Vector3.ZERO
 
 
@@ -415,7 +460,21 @@ func _physics_process(delta: float) -> void:
 	_iframes_left = maxf(0.0, _iframes_left - delta)
 
 	_update_aim()
-	if not _grapple_active and Input.is_action_just_pressed("grapple") and _anchor_valid and not in_tunnel:
+	if _grapple_hold:
+		if Input.is_action_just_pressed("grapple"):
+			_grapple_hold = false  # 再按 T 松开，自由下落
+			_update_rope()
+			return
+		if Input.is_action_just_pressed("jump") and not in_tunnel:
+			_grapple_hold = false  # 按跳跃松开：直接起跳（不耗电）
+			_coyote_left = Config.coyote_time
+			_jumps_left = 2
+		else:
+			velocity = Vector3.ZERO
+			global_position = _hold_pos
+			_update_rope()
+			return
+	if not _grapple_active and not _grapple_hold and Input.is_action_just_pressed("grapple") and _anchor_valid and not in_tunnel:
 		_grapple_active = true
 		_grapple_target = _anchor
 	if _grapple_active:
@@ -464,15 +523,33 @@ func _physics_process(delta: float) -> void:
 		battery -= Config.jet_battery_cost  # 每次喷气扣 3 格（启动门槛 >= 3 保证不会扣成负数）
 		_jet_dir = _facing
 
+	# 跳跃缓冲 / 土狼时间：离开平台后短时间内仍可起跳；落地前按的跳跃会在落地后执行
+	_coyote_left = maxf(0.0, _coyote_left - delta)
+	if is_on_floor():
+		_coyote_left = Config.coyote_time
+	if Input.is_action_just_pressed("jump"):
+		_jump_buffer_left = Config.jump_buffer_time
+	else:
+		_jump_buffer_left = maxf(0.0, _jump_buffer_left - delta)
+
 	# 跳跃：地面一段 1H；空中二段（总高 2H）需要有电
-	if Input.is_action_just_pressed("jump") and _posture != Posture.PRONE and _jumps_left > 0 \
-			and (is_on_floor() or has_power) and not in_tunnel:
+	if _jump_buffer_left > 0.0 and _posture != Posture.PRONE and _jumps_left > 0 \
+			and (is_on_floor() or _coyote_left > 0.0 or has_power) and not in_tunnel:
 		velocity.y = Config.jump_velocity
 		_jumps_left -= 1
+		_jump_buffer_left = 0.0
+		_coyote_left = 0.0
 
-	# 重力
+	# 可变跳高：松开跳跃键时上升被截短
+	if Input.is_action_just_released("jump") and velocity.y > 0.0:
+		velocity.y *= Config.jump_cut_multiplier
+
+	# 重力：下落更快（上升高度不变）
 	if not is_on_floor():
-		velocity.y -= Config.gravity * delta
+		var g := Config.gravity
+		if velocity.y < 0.0:
+			g *= Config.fall_gravity_multiplier
+		velocity.y -= g * delta
 	elif velocity.y < 0.0:
 		velocity.y = 0.0
 
