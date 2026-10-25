@@ -55,7 +55,10 @@ var _marker_mat: StandardMaterial3D
 var _rope: MeshInstance3D
 var _rope_mesh: ImmediateMesh
 var _grapple_hold := false   # 已勾住：静止挂在锚点上
-var _hold_pos := Vector3.ZERO
+var _swing_theta := 0.0     # 摆角：0 = 正下方
+var _swing_omega := 0.0     # 摆角速度 (rad/s)
+var _rope_len := 1.0        # 绳长 = 勾住时胸口到锚点的距离
+var _swing_anchor := Vector3.ZERO
 var _anchor_node: Node = null     # 当前瞄准到的锚点
 var _grapple_node: Node = null    # 本次勾爪绑定的锚点
 var _pullup_left := 0.0           # 悬崖拉上剩余时间
@@ -467,12 +470,45 @@ func _start_pullup() -> void:
 	velocity = Vector3.ZERO
 
 
-# 空中锚点：完全静止悬挂，直到再按 T 松开或按跳跃起跳
+# 空中锚点：勾住后进入摆荡（单摆），保留勾拽时的速度
 func _grab() -> void:
 	_grapple_active = false
 	_grapple_hold = true
-	_hold_pos = global_position
+	var anc := _grapple_target
+	if _grapple_node is Node3D:
+		anc = (_grapple_node as Node3D).global_position
+	var off := _chest() - anc
+	off.z = 0.0
+	_swing_anchor = anc
+	_rope_len = maxf(off.length(), 1.0)
+	_swing_theta = atan2(off.x, -off.y)
+	var tangent := Vector3(cos(_swing_theta), sin(_swing_theta), 0.0)
+	_swing_omega = velocity.dot(tangent) / _rope_len
 	velocity = Vector3.ZERO
+
+
+# 摆荡：单摆方程 + A/D 施加侧向推力；身体跟随绳子位置
+func _swing_step(delta: float) -> void:
+	var pump := Input.get_axis("move_left", "move_right")
+	var alpha := -(Config.gravity / _rope_len) * sin(_swing_theta) + pump * Config.swing_pump_accel
+	_swing_omega += alpha * delta
+	_swing_omega *= exp(-Config.swing_damping * delta)
+	_swing_theta += _swing_omega * delta
+	if absf(_swing_theta) > Config.swing_max_angle:
+		_swing_theta = clampf(_swing_theta, -Config.swing_max_angle, Config.swing_max_angle)
+		_swing_omega = 0.0
+	var chest := _swing_anchor + Vector3(sin(_swing_theta), -cos(_swing_theta), 0.0) * _rope_len
+	global_position = chest - Vector3(0, _shape.size.y * 0.5, 0)
+	global_position.z = 0.0
+	velocity = Vector3.ZERO
+
+
+# 松开摆荡：速度 = 切线方向 × 角速度 × 绳长
+func _release_swing() -> void:
+	var tangent := Vector3(cos(_swing_theta), sin(_swing_theta), 0.0)
+	velocity = tangent * _swing_omega * _rope_len
+	velocity.z = 0.0
+	_grapple_hold = false
 
 
 func _end_grapple() -> void:
@@ -503,16 +539,15 @@ func _physics_process(delta: float) -> void:
 	_update_aim()
 	if _grapple_hold:
 		if Input.is_action_just_pressed("grapple"):
-			_grapple_hold = false  # 再按 T 松开，自由下落
+			_release_swing()  # 再按 T 松开，带着摆动速度下落
 			_update_rope()
 			return
 		if Input.is_action_just_pressed("jump") and not in_tunnel:
-			_grapple_hold = false  # 按跳跃松开：直接起跳（不耗电）
+			_release_swing()  # 按跳跃松开：带摆动速度起跳（不耗电）
 			_coyote_left = Config.coyote_time
 			_jumps_left = 2
 		else:
-			velocity = Vector3.ZERO
-			global_position = _hold_pos
+			_swing_step(delta)
 			_update_rope()
 			return
 	if not _grapple_active and not _grapple_hold and Input.is_action_just_pressed("grapple") and _anchor_valid and not in_tunnel:

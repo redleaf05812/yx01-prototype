@@ -56,6 +56,10 @@ var grapple_arrive_distance := 0.2      # 自定：到达阈值
 var pullup_up := 9.0                  # 悬崖拉上：向上速度 (m/s)
 var pullup_forward := 4.0               # 悬崖拉上：向前速度 (m/s)
 var pullup_time := 0.35                 # 悬崖拉上：持续时间 (s)，之后自然落到崖顶
+# 摆荡（空中锚点悬挂时）
+var swing_pump_accel := 8.0             # A/D 施加的摆荡加速度 (rad/s²)
+var swing_damping := 0.25               # 摆荡阻尼（越大越快停）
+var swing_max_angle := 1.3              # 最大摆角 (rad，约 75°)
 
 # ---- 手枪 ----
 var pistol_damage := 1.0

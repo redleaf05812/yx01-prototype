@@ -126,7 +126,7 @@ func _build_anchors() -> void:
 	_add_anchor(Vector3(15 * H, (ROWS - 4) * H + 1.0, 0.0), "平台锚点（悬挂）", "hang")
 	# 阻拦点左上角 = 悬崖边：锚点压在崖边上
 	_add_anchor(Vector3(23 * H, 1.8 + 3 * H + 0.1, 0.0), "悬崖边锚点（自动拉上）", "ledge")
-	_add_anchor(Vector3(20.5 * H, 1.8 + 4 * H, 0.0), "空中锚点（悬挂）", "hang")
+	_add_anchor(Vector3(20.5 * H, 1.8 + 8 * H, 0.0), "空中锚点（可摆荡）", "hang")
 
 
 func _add_anchor(pos: Vector3, label: String, kind: String) -> void:
