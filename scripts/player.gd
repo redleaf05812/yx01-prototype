@@ -51,7 +51,7 @@ var _grapple_target := Vector3.ZERO
 var _marker: MeshInstance3D
 var _marker_mat: StandardMaterial3D
 var _rope: MeshInstance3D
-var _rope_mesh: ImmediateMesh
+var _rope_box: BoxMesh
 var _grapple_hold := false   # 已勾住：静止挂在锚点上
 var _swing_theta := 0.0     # 摆角：0 = 正下方
 var _swing_omega := 0.0     # 摆角速度 (rad/s)
@@ -148,11 +148,14 @@ func _build_grapple_visuals() -> void:
 	var rope_mat := StandardMaterial3D.new()
 	rope_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	rope_mat.albedo_color = Color(0.9, 0.9, 0.9)
-	_rope_mesh = ImmediateMesh.new()
+	# 绳子 = 细长方块，每帧拉伸到「胸口 → 锚点」
+	_rope_box = BoxMesh.new()
+	_rope_box.size = Vector3(0.06, 0.06, 1.0)
+	_rope_box.material = rope_mat
 	_rope = MeshInstance3D.new()
-	_rope.mesh = _rope_mesh
-	_rope.material_override = rope_mat
+	_rope.mesh = _rope_box
 	_rope.top_level = true
+	_rope.visible = false
 	add_child(_rope)
 
 
@@ -520,14 +523,22 @@ func _end_grapple() -> void:
 	velocity = Vector3.ZERO
 
 
+# 绳子显示：飞出去时、挂在锚点上摆荡时、悬崖拉上时都可见
 func _update_rope() -> void:
-	_rope_mesh.clear_surfaces()
-	if not _grapple_active:
+	var active := _grapple_active or _grapple_hold or _pullup_left > 0.0
+	_rope.visible = active
+	if not active:
 		return
-	_rope_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	_rope_mesh.surface_add_vertex(_chest())
-	_rope_mesh.surface_add_vertex(_grapple_target)
-	_rope_mesh.surface_end()
+	var a := _chest()
+	var b := _swing_anchor if _grapple_hold else _grapple_target
+	var d := b - a
+	d.z = 0.0
+	if d.length() < 0.01:
+		_rope.visible = false
+		return
+	_rope_box.size.z = d.length()
+	_rope.global_position = (a + b) * 0.5
+	_rope.look_at(b, Vector3.BACK)
 
 
 # ---------- 主循环 ----------
