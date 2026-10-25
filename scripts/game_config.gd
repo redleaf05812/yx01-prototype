@@ -62,8 +62,8 @@ var pistol_magazine := 6
 # 三连发 / 后坐力（自定）：三连发 = 同一把枪连续打 3 发（每发 1 发弹药），每发之间枪口上抬
 var triple_count := 3                   # 一次三连发打出的发数
 var triple_interval := 0.12             # 三连发内每发间隔 (s)
-var recoil_per_shot := 0.06             # 每发后坐力：枪口上抬 (rad，约 3.4°)
-var recoil_max := 0.25                  # 后坐力上限 (rad，约 14°)
+var recoil_per_shot := 0.12             # 每发后坐力：枪口上抬 (rad，约 6.9°)
+var recoil_max := 0.4                   # 后坐力上限 (rad，约 23°)
 var recoil_recover_per_sec := 0.6       # 后坐力回落速度 (rad/s)
 var reload_time := 1.2                  # s
 
