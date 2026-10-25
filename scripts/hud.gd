@@ -36,7 +36,7 @@ func _build() -> void:
 	hint_style.content_margin_bottom = 6
 	hint_panel.add_theme_stylebox_override("panel", hint_style)
 	var hint := Label.new()
-	hint.text = "A/D 移动   空格 跳跃   C 蹲下   Z 趴下   Shift 跑步/冲刺\nCtrl 喷气   Q 隐身   T 勾爪   R 换弹   F 开门\n鼠标左键 射击/投掷EMP   右键 EMP撞击   1/3 切换   0 清空电量（调试）"
+	hint.text = "A/D 移动   空格 跳跃   C 蹲下   Z 趴下   Shift 跑步/冲刺\nCtrl 喷气   Q 隐身   T 勾爪   R 换弹   F 开门\n鼠标左键 射击/投掷EMP   右键 EMP撞击   1/3 切换"
 	hint.add_theme_font_override("font", Config.cjk_font)
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

@@ -78,7 +78,6 @@ func _ensure_input() -> void:
 	_add_action("grapple", [KEY_T])
 	_add_action("jet", [KEY_CTRL])
 	_add_action("stealth", [KEY_Q])
-	_add_action("debug_empty_battery", [KEY_0])  # 调试用：清空电量，上线前删除
 	_add_action("reload", [KEY_R])
 	_add_action("interact", [KEY_F])
 	_add_action("slot_pistol", [KEY_1])
@@ -409,9 +408,6 @@ func _update_rope() -> void:
 # ---------- 主循环 ----------
 
 func _physics_process(delta: float) -> void:
-	if Input.is_action_just_pressed("debug_empty_battery"):
-		battery = 0.0
-
 	battery = minf(float(Config.battery_max), battery + Config.battery_regen_per_sec * delta)
 	jet_cd_left = maxf(0.0, jet_cd_left - delta)
 	_dash_cd_left = maxf(0.0, _dash_cd_left - delta)
