@@ -11,9 +11,9 @@ config_version=5
 [application]
 
 config/name="YX01_Prototype"
+run/main_scene="res://scenes/room_01.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
-run/main_scene="res://scenes/room_01.tscn"
 
 [autoload]
 

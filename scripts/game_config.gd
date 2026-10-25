@@ -59,13 +59,12 @@ var pistol_damage := 1.0
 var pistol_range := 9.0                 # 900 uu (5H)
 var pistol_fire_interval := 0.35        # s
 var pistol_magazine := 6
-# 三连发 / 后坐力（自定）
-var triple_spread_deg := 3.0            # 三连发扇形：左右各偏 3°
-var triple_fire_interval := 0.5         # 三连发射速 (s)
-var recoil_single := 0.05               # 单发后坐力：枪口上抬 (rad，约 2.9°)
-var recoil_triple := 0.09               # 三连发后坐力 (rad，约 5.2°)
+# 三连发 / 后坐力（自定）：三连发 = 同一把枪连续打 3 发（每发 1 发弹药），每发之间枪口上抬
+var triple_count := 3                   # 一次三连发打出的发数
+var triple_interval := 0.12             # 三连发内每发间隔 (s)
+var recoil_per_shot := 0.06             # 每发后坐力：枪口上抬 (rad，约 3.4°)
 var recoil_max := 0.25                  # 后坐力上限 (rad，约 14°)
-var recoil_recover_per_sec := 0.5       # 后坐力回落速度 (rad/s)
+var recoil_recover_per_sec := 0.6       # 后坐力回落速度 (rad/s)
 var reload_time := 1.2                  # s
 
 # ---- EMP ----

@@ -235,9 +235,20 @@ func _update_combat(delta: float) -> void:
 		_reload_left = Config.reload_time
 
 	if kind == 0:
-		if Input.is_action_just_pressed("fire") and _can_act() and not reloading \
-				and ammo > 0 and _fire_cd <= 0.0:
-			_fire_pistol()
+		var can_shoot := _can_act() and not reloading and ammo > 0 and _fire_cd <= 0.0
+		if Input.is_action_just_pressed("fire") and can_shoot:
+			if fire_mode == 0:
+				_fire_shot()
+				_fire_cd = Config.pistol_fire_interval
+			else:
+				_burst_left = Config.triple_count
+		# 三连发：同一把枪连续打出，发与发之间有间隔（每发都会抬枪）
+		if _burst_left > 0 and (not _can_act() or reloading or ammo <= 0):
+			_burst_left = 0
+		if _burst_left > 0 and _fire_cd <= 0.0:
+			_fire_shot()
+			_burst_left -= 1
+			_fire_cd = Config.triple_interval if _burst_left > 0 else Config.pistol_fire_interval
 	elif emp_count > 0 and _can_act():
 		if Input.is_action_just_pressed("fire"):
 			_throw_emp(false)
@@ -245,23 +256,13 @@ func _update_combat(delta: float) -> void:
 			_throw_emp(true)
 
 
-# 手枪：瞬时命中（射线）。单发：一颗；三连发：三颗扇形，同样只耗 1 发弹药。
-# 后坐力：每次射击枪口向上抬一点，松开后逐渐回落。
-func _fire_pistol() -> void:
+# 手枪：瞬时命中（射线）。一发 = 消耗 1 发弹药；每发后坐力使枪口上抬。
+func _fire_shot() -> void:
 	ammo -= 1
 	break_stealth()  # 隐身中开枪立刻破隐
 	var chest := _chest()
-	var base := _aim_dir(chest)
-	if fire_mode == 0:
-		_fire_cd = Config.pistol_fire_interval
-		_shoot(chest, _kicked(base, 0.0))
-		_recoil = minf(_recoil + Config.recoil_single, Config.recoil_max)
-	else:
-		_fire_cd = Config.triple_fire_interval
-		var spread := deg_to_rad(Config.triple_spread_deg)
-		for a in [-spread, 0.0, spread]:
-			_shoot(chest, _kicked(base, a))
-		_recoil = minf(_recoil + Config.recoil_triple, Config.recoil_max)
+	_shoot(chest, _kicked(_aim_dir(chest)))
+	_recoil = minf(_recoil + Config.recoil_per_shot, Config.recoil_max)
 
 
 func _shoot(from: Vector3, dir: Vector3) -> void:
@@ -277,10 +278,10 @@ func _shoot(from: Vector3, dir: Vector3) -> void:
 	_spawn_tracer(from, end)
 
 
-# 方向 = 原方向旋转扇形偏移 + 向上的后坐力（不论朝左朝右，后坐力都是往上抬）
-func _kicked(dir: Vector3, spread_rad: float) -> Vector3:
+# 后坐力：在瞄准方向上再向上抬 _recoil 弧度（不论朝左朝右，都是往上抬）
+func _kicked(dir: Vector3) -> Vector3:
 	var side := signf(dir.x) if dir.x != 0.0 else _facing
-	var a := spread_rad + _recoil * side
+	var a := _recoil * side
 	return Vector3(dir.x * cos(a) - dir.y * sin(a), dir.x * sin(a) + dir.y * cos(a), 0.0).normalized()
 
 
@@ -423,10 +424,22 @@ func _grapple_step(_delta: float) -> void:
 	move_and_slide()
 	global_position.z = 0.0
 	if get_slide_collision_count() > 0:
-		_grab()
+		if _touched_anchor():
+			_grab()
+		else:
+			_end_grapple()  # 被墙/平台挡住：绳子断开，直接下落
 
 
-# 勾住后：完全静止（不受重力、不能移动），直到再按 T 松开或按跳跃起跳
+# 撞到的是锚点（而不是墙）才算勾住
+func _touched_anchor() -> bool:
+	for i in get_slide_collision_count():
+		var c = get_slide_collision(i).get_collider()
+		if c is Node and c.is_in_group("grapple_anchor"):
+			return true
+	return false
+
+
+# 勾住锚点后：完全静止（不受重力、不能移动），直到再按 T 松开或按跳跃起跳
 func _grab() -> void:
 	_grapple_active = false
 	_grapple_hold = true
